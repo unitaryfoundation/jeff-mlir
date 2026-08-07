@@ -17,6 +17,7 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/ADT/TypeSwitch.h>
 #include <llvm/Support/Casting.h>
+#include <llvm/Support/Error.h>
 #include <llvm/Support/ErrorHandling.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/raw_ostream.h>
@@ -1546,21 +1547,25 @@ kj::Array<capnp::word> serialize(mlir::ModuleOp module) {
     return capnp::messageToFlatArray(message);
 }
 
-void serializeToFile(mlir::ModuleOp module, llvm::StringRef path) {
-    int file = 0;
-    if (llvm::sys::fs::openFileForWrite(path, file)) {
-        llvm::report_fatal_error("Could not open file");
-    }
-    auto fd = llvm::sys::fs::convertFDToNativeFile(file);
+mlir::LogicalResult serializeToFile(mlir::ModuleOp module, llvm::StringRef path) {
     capnp::MallocMessageBuilder message;
     writeMessage(module, message);
 
+    auto file = llvm::sys::fs::openNativeFileForWrite(path, llvm::sys::fs::CD_CreateAlways,
+                                                      llvm::sys::fs::OF_None);
+    if (!file) {
+        llvm::errs() << "Failed to open " << path << ": " << llvm::toString(file.takeError())
+                     << "\n";
+        return mlir::failure();
+    }
+
 #ifdef _WIN32
-    kj::AutoCloseHandle handle(fd);
+    kj::AutoCloseHandle handle(*file);
     kj::HandleOutputStream output(kj::mv(handle));
     capnp::writeMessage(output, message);
 #else
-    const kj::AutoCloseFd autoCloseFd(fd);
+    const kj::AutoCloseFd autoCloseFd(*file);
     capnp::writeMessageToFd(autoCloseFd, message);
 #endif
+    return mlir::success();
 }
