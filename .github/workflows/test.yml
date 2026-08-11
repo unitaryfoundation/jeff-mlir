@@ -25,7 +25,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ubuntu-24.04, macos-26, windows-2025]
+        runs-on:
+          [
+            ubuntu-24.04,
+            ubuntu-24.05-arm,
+            macos-26,
+            macos-26-intel,
+            windows-2025,
+            windows-11-arm,
+          ]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up uv
