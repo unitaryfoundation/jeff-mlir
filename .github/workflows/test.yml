@@ -28,7 +28,7 @@ jobs:
         runs-on:
           [
             ubuntu-24.04,
-            ubuntu-24.05-arm,
+            ubuntu-24.04-arm,
             macos-26,
             macos-26-intel,
             windows-2025,
