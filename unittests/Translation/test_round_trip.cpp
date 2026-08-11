@@ -15,6 +15,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/IR/MLIRContext.h>
+#include <mlir/Support/LLVM.h>
 
 #include <algorithm>
 #include <filesystem>
