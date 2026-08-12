@@ -40,7 +40,7 @@ jobs:
       - name: Set up MLIR
         uses: munich-quantum-software/setup-mlir@3f32263ce571a8b745068980f30f188b6e800763 # v1.4.2
         with:
-          llvm-version: 22.1.7
+          llvm-version: 22.1.8
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
