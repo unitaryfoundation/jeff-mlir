@@ -7,28 +7,29 @@
 # ]
 # ///
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+
 from jeff import (
-    JeffRegion,
-    JeffModule,
+    FloatArrayType,
+    FloatType,
+    ForSCF,
+    FunctionDef,
+    IntArrayType,
     IntType,
+    JeffModule,
     JeffOp,
+    JeffRegion,
     JeffValue,
     QubitType,
-    FunctionDef,
-    qubit_alloc,
-    qubit_free,
-    FloatType,
-    quantum_gate,
-    ForSCF,
-    pauli_rotation,
-    switch_case,
     QuregType,
     WhileSCF,
-    IntArrayType,
-    FloatArrayType,
+    pauli_rotation,
+    quantum_gate,
+    qubit_alloc,
+    qubit_free,
     schema,
+    switch_case,
 )
 
 INPUTS_DIR = Path(__file__).parent / "inputs"
