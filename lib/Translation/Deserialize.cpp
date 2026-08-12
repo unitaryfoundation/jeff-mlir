@@ -11,6 +11,7 @@
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
+#include <llvm/Support/Alignment.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/ErrorHandling.h>
 #include <llvm/Support/MemoryBuffer.h>
@@ -1562,16 +1563,24 @@ mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
 
 mlir::OwningOpRef<mlir::ModuleOp> deserializeFromFile(mlir::MLIRContext* context,
                                                       llvm::StringRef path) {
-    auto file = llvm::MemoryBuffer::getFile(path);
+    // The buffer is read as an array of Cap'n Proto words, so request a buffer
+    // that is aligned accordingly.
+    auto file = llvm::MemoryBuffer::getFile(path, /*IsText=*/false,
+                                            /*RequiresNullTerminator=*/true, /*IsVolatile=*/false,
+                                            llvm::Align(alignof(capnp::word)));
     if (!file) {
-        llvm::errs() << "Failed to open file: " << path << "\n";
-        llvm::report_fatal_error("Could not open file");
+        llvm::errs() << "Failed to open " << path << ": " << file.getError().message() << "\n";
+        return {};
     }
 
     // Get jeff module from buffer
     const auto bytes = (*file)->getBuffer();
-    assert(bytes.size() % sizeof(capnp::word) == 0 &&
-           "Serialized module size must be a multiple of capnp::word size");
+    if (bytes.size() % sizeof(capnp::word) != 0) {
+        llvm::errs() << "Failed to read " << path
+                     << ": size must be a multiple of the Cap'n Proto word size\n";
+        return {};
+    }
+
     assert(reinterpret_cast<uintptr_t>(bytes.data()) % alignof(capnp::word) == 0 &&
            "Serialized module buffer must be aligned to capnp::word alignment");
     const auto words = kj::ArrayPtr(reinterpret_cast<const capnp::word*>(bytes.data()),

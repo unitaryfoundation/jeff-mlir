@@ -22,9 +22,9 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - name: Set up Clang ${{ env.CLANG_VERSION }}
         env:
           TEMP_DIR: ${{ runner.temp }}
@@ -46,15 +46,15 @@ jobs:
           echo "CC=clang-$clang_version" >> $GITHUB_ENV
           echo "CXX=clang++-$clang_version" >> $GITHUB_ENV
       - name: Set up MLIR
-        uses: munich-quantum-software/setup-mlir@97da765dfa9dc8e055611ca934fe51bcade8140c # v1.3.0
+        uses: munich-quantum-software/setup-mlir@3f32263ce571a8b745068980f30f188b6e800763 # v1.4.2
         with:
-          llvm-version: 21.1.8
+          llvm-version: 22.1.8
       - name: Configure
         run: cmake -S . -B build
       - name: Build
         run: cmake --build build
       - name: Run cpp-linter
-        uses: cpp-linter/cpp-linter-action@b6edc0625e3941baa1797f4b4326adeab6890c97 # v2.16.7
+        uses: cpp-linter/cpp-linter-action@8e85cd02c8c3fe3ae527c94b5683fe2366b144ed # v2.20.0
         id: linter
         env:
           GITHUB_TOKEN: ${{ github.token }}

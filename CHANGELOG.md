@@ -5,6 +5,14 @@ This file tracks the changes to `jeff-mlir`.
 The project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+`serializeToFile()` now returns `mlir::LogicalResult` instead of `void` and
+reports a failure to open the output file through that result. Previously, it
+called `llvm::report_fatal_error()`, which aborts the process and leaves callers
+no way to handle the error. For the same reason, `deserializeFromFile()` now
+returns a null module instead of aborting when the input file cannot be read.
+
 ## [0.3.0] - 2026-07-13
 
 This release fixes the linearity of `WhileOp` (see
@@ -38,6 +46,7 @@ This release is compatible with `jeff-v0.2.0`.
 
 <!-- Version links -->
 
+[unreleased]: https://github.com/PennyLaneAI/jeff-mlir/compare/v0.3.0...HEAD
 [0.3.0]: https://github.com/PennyLaneAI/jeff-mlir/tree/v0.3.0
 [0.2.0]: https://github.com/PennyLaneAI/jeff-mlir/tree/v0.2.0
 [0.1.0]: https://github.com/PennyLaneAI/jeff-mlir/tree/v0.1.0

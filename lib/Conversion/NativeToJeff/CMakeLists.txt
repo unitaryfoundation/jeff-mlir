@@ -5,6 +5,9 @@ add_mlir_conversion_library(
     ${CONVERSION_SOURCES}
     DEPENDS
     NativeToJeffIncGen
+    MLIRJeffEnumsIncGen
+    MLIRJeffInterfacesIncGen
+    MLIRJeffOpsIncGen
     LINK_LIBS
     MLIRArithDialect
     MLIRDialect

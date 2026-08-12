@@ -2,6 +2,10 @@ add_mlir_library(
     MLIRJeffTranslation
     Deserialize.cpp
     Serialize.cpp
+    DEPENDS
+    MLIRJeffEnumsIncGen
+    MLIRJeffInterfacesIncGen
+    MLIRJeffOpsIncGen
     LINK_LIBS
     PRIVATE
     MLIRJeff

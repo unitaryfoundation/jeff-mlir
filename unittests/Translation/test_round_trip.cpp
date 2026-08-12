@@ -15,6 +15,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/IR/MLIRContext.h>
+#include <mlir/Support/LLVM.h>
 
 #include <algorithm>
 #include <filesystem>
@@ -119,3 +120,64 @@ TEST_P(RoundTripTest, RoundTrip) {
 }
 
 INSTANTIATE_TEST_SUITE_P(, RoundTripTest, ::testing::ValuesIn(getTestCases()));
+
+TEST(SerializeToFileTest, WritesFileThatRoundTrips) {
+    mlir::DialectRegistry registry;
+    registry.insert<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
+
+    mlir::MLIRContext context(registry);
+    context.loadAllAvailableDialects();
+
+    const fs::path inputsDir = TEST_INPUTS_DIR;
+    const auto& input = inputsDir / "bell_pair.jeff";
+    auto mlirModule = deserializeFromFile(&context, input.string());
+    ASSERT_TRUE(mlirModule);
+
+    const auto output = fs::path(::testing::TempDir()) / "serialize_to_file.jeff";
+    ASSERT_TRUE(mlir::succeeded(serializeToFile(*mlirModule, output.string())));
+
+    EXPECT_EQ(readJeffFileToText(input.string()), readJeffFileToText(output.string()));
+}
+
+TEST(SerializeToFileTest, FailsForUnwritablePath) {
+    mlir::DialectRegistry registry;
+    registry.insert<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
+
+    mlir::MLIRContext context(registry);
+    context.loadAllAvailableDialects();
+
+    const fs::path inputsDir = TEST_INPUTS_DIR;
+    auto mlirModule = deserializeFromFile(&context, (inputsDir / "bell_pair.jeff").string());
+    ASSERT_TRUE(mlirModule);
+
+    const auto output = fs::path(::testing::TempDir()) / "missing" / "serialize_to_file.jeff";
+    EXPECT_TRUE(mlir::failed(serializeToFile(*mlirModule, output.string())));
+}
+
+TEST(DeserializeFromFileTest, ReturnsNullForMissingFile) {
+    mlir::DialectRegistry registry;
+    registry.insert<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
+
+    mlir::MLIRContext context(registry);
+    context.loadAllAvailableDialects();
+
+    const auto input = fs::path(::testing::TempDir()) / "missing" / "does_not_exist.jeff";
+    EXPECT_FALSE(deserializeFromFile(&context, input.string()));
+}
+
+TEST(DeserializeFromFileTest, ReturnsNullForTruncatedFile) {
+    mlir::DialectRegistry registry;
+    registry.insert<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
+
+    mlir::MLIRContext context(registry);
+    context.loadAllAvailableDialects();
+
+    // Drop a single byte so that the size is no longer a multiple of the word size.
+    const fs::path inputsDir = TEST_INPUTS_DIR;
+    const auto input = inputsDir / "bell_pair.jeff";
+    const auto truncated = fs::path(::testing::TempDir()) / "truncated.jeff";
+    fs::copy_file(input, truncated, fs::copy_options::overwrite_existing);
+    fs::resize_file(truncated, fs::file_size(truncated) - 1);
+
+    EXPECT_FALSE(deserializeFromFile(&context, truncated.string()));
+}
