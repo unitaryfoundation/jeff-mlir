@@ -39,7 +39,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "jeff/IR/JeffDialect.h"
-#define GET_ENUMDEF_CLASSES
 #include "jeff/IR/JeffEnums.h.inc"
 #define GET_ATTRDEF_CLASSES
 #include "jeff/IR/JeffAttributes.h.inc"
