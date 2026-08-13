@@ -50,16 +50,16 @@ jobs:
         with:
           llvm-version: 22.1.8
       - name: Configure
-        run: cmake -S . -B build
+        run: cmake --preset lint
       - name: Build
-        run: cmake --build build
+        run: cmake --build --preset lint
       - name: Run cpp-linter
         uses: cpp-linter/cpp-linter-action@8e85cd02c8c3fe3ae527c94b5683fe2366b144ed # v2.20.0
         id: linter
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          database: build
+          database: build/lint
           files-changed-only: true
           ignore: "build|include"
           step-summary: true
