@@ -68,18 +68,24 @@ Finally, you can point the `MLIR_DIR` variable to
 </details>
 <br>
 
-From here, we can build the `jeff` dialect simply via:
+From here, we can build the `jeff` dialect via the provided CMake presets:
 
 ```sh
-cmake -Bbuild -S. -GNinja && cmake --build build
+cmake --preset release && cmake --build --preset release
 ```
 
-If CMake can't find the MLIR build, it can be specified via `-DMLIR_DIR=...`
-during the config step, which must point to the cmake files in the build or
-installation directory, for example `/path/to/installation/lib/cmake/mlir`.
+The available presets are `debug` and `release` on Linux and macOS, and
+`debug-windows` and `release-windows` on Windows. Each preset builds into its
+own directory under `./build/<preset>`. The tests can be run with
+`ctest --preset <preset>`.
+
+If CMake can't find the MLIR build, it can be specified via the `MLIR_DIR`
+environment variable, which the presets pick up, or via `-DMLIR_DIR=...` during
+the config step. It must point to the cmake files in the build or installation
+directory, for example `/path/to/installation/lib/cmake/mlir`.
 
 The `jeff-opt` tool will be located in the build directory under
-`./build/lib/opt/jeff-opt`.
+`./build/<preset>/lib/opt/jeff-opt`.
 
 TODO: Add instructions for setting up the dialect as an MLIR plugin.
 
