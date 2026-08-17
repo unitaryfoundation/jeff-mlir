@@ -3,7 +3,7 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
-#   "jeff-format",
+#   "jeff-format~=0.1.0",
 # ]
 # ///
 

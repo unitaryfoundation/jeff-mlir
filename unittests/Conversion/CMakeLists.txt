@@ -8,6 +8,15 @@ if(NOT TARGET ${test_name})
 
     add_executable(${test_name} test_native_round_trip.cpp)
 
+    add_dependencies(${test_name} generate_test_cases)
+
+    # Relink when the test cases change so that they are discovered again
+    set_property(
+        TARGET ${test_name}
+        APPEND
+        PROPERTY LINK_DEPENDS ${generate_test_cases_stamp}
+    )
+
     target_link_libraries(
         ${test_name} PRIVATE GTest::gtest_main MLIRJeff MLIRJeffToNative MLIRJeffTranslation
                              MLIRNativeToJeff
@@ -19,7 +28,5 @@ if(NOT TARGET ${test_name})
 
     set_target_properties(${test_name} PROPERTIES FOLDER unittests)
 
-    gtest_discover_tests(
-        ${test_name} DISCOVERY_TIMEOUT 60 PROPERTIES FIXTURES_REQUIRED generate_test_cases_success
-    )
+    gtest_discover_tests(${test_name} DISCOVERY_TIMEOUT 60)
 endif()
