@@ -20,4 +20,4 @@ target_include_directories(
                                ${jeff_BINARY_DIR}/impl/cpp/src/capnp
 )
 
-target_sources(MLIRJeffTranslation PUBLIC ${jeff_SOURCE_DIR}/impl/cpp/src/capnp/jeff.capnp.c++)
+target_sources(MLIRJeffTranslation PRIVATE ${jeff_SOURCE_DIR}/impl/cpp/src/capnp/jeff.capnp.c++)
