@@ -737,11 +737,11 @@ void serializeFloatConversion(jeff::Op::Builder builder, mlir::jeff::IntOperatio
                               SerializationContext& ctx) {
     auto intBuilder = builder.initInstruction().initInt();
     llvm::TypeSwitch<mlir::Operation*, void>(operation)
-        .Case<mlir::jeff::IntExtSOp>([&](auto op) { intBuilder.setExtS(); })
-        .Case<mlir::jeff::IntExtUOp>([&](auto op) { intBuilder.setExtU(); })
-        .Case<mlir::jeff::IntTruncOp>([&](auto op) { intBuilder.setTrunc(); })
-        .Case<mlir::jeff::IntToFloatSOp>([&](auto op) { intBuilder.setToFloatS(); })
-        .Case<mlir::jeff::IntToFloatUOp>([&](auto op) { intBuilder.setToFloatU(); });
+        .Case<mlir::jeff::IntExtSOp>([&](auto) { intBuilder.setExtS(); })
+        .Case<mlir::jeff::IntExtUOp>([&](auto) { intBuilder.setExtU(); })
+        .Case<mlir::jeff::IntTruncOp>([&](auto) { intBuilder.setTrunc(); })
+        .Case<mlir::jeff::IntToFloatSOp>([&](auto) { intBuilder.setToFloatS(); })
+        .Case<mlir::jeff::IntToFloatUOp>([&](auto) { intBuilder.setToFloatU(); });
 
     auto inputs = builder.initInputs(1);
     inputs.set(0, ctx.getValueId(operation->getOperand(0)));
@@ -1113,10 +1113,10 @@ void serializeFloatConversion(jeff::Op::Builder builder, mlir::jeff::FloatOperat
                               SerializationContext& ctx) {
     auto floatBuilder = builder.initInstruction().initFloat();
     llvm::TypeSwitch<mlir::Operation*, void>(operation)
-        .Case<mlir::jeff::FloatExtOp>([&](auto op) { floatBuilder.setExt(); })
-        .Case<mlir::jeff::FloatTruncOp>([&](auto op) { floatBuilder.setTrunc(); })
-        .Case<mlir::jeff::FloatToSIntOp>([&](auto op) { floatBuilder.setToSInt(); })
-        .Case<mlir::jeff::FloatToUIntOp>([&](auto op) { floatBuilder.setToUInt(); });
+        .Case<mlir::jeff::FloatExtOp>([&](auto) { floatBuilder.setExt(); })
+        .Case<mlir::jeff::FloatTruncOp>([&](auto) { floatBuilder.setTrunc(); })
+        .Case<mlir::jeff::FloatToSIntOp>([&](auto) { floatBuilder.setToSInt(); })
+        .Case<mlir::jeff::FloatToUIntOp>([&](auto) { floatBuilder.setToUInt(); });
 
     auto inputs = builder.initInputs(1);
     inputs.set(0, ctx.getValueId(operation->getOperand(0)));
