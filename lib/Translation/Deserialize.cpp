@@ -574,6 +574,9 @@ void deserializeQureg(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reade
     }
 }
 
+// Forward declaration
+mlir::Type deserializeType(mlir::ImplicitLocOpBuilder& builder, const jeff::Type::Reader& type);
+
 //===----------------------------------------------------------------------===//
 // Int operations
 //===----------------------------------------------------------------------===//
@@ -625,6 +628,26 @@ void deserializeIntComparisonOp(mlir::ImplicitLocOpBuilder& builder,
     auto op = mlir::jeff::IntComparisonOp::create(builder, ctx.getValue(inputs[0]),
                                                   ctx.getValue(inputs[1]), comparisonOperation);
     ctx.setValue(outputs[0], op.getC());
+}
+
+void deserializeIntSelect(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reader& operation,
+                          DeserializationContext& ctx) {
+    const auto inputs = operation.getInputs();
+    const auto outputs = operation.getOutputs();
+    auto op = mlir::jeff::IntSelectOp::create(builder, ctx.getValue(inputs[1]).getType(),
+                                              ctx.getValue(inputs[0]), ctx.getValue(inputs[1]),
+                                              ctx.getValue(inputs[2]));
+    ctx.setValue(outputs[0], op.getResult());
+}
+
+template <typename JeffOp>
+void deserializeIntConversion(mlir::ImplicitLocOpBuilder& builder,
+                              const jeff::Op::Reader& operation, DeserializationContext& ctx) {
+    const auto inputs = operation.getInputs();
+    const auto outputs = operation.getOutputs();
+    auto op = JeffOp::create(builder, deserializeType(builder, ctx.getJeffType(outputs[0])),
+                             ctx.getValue(inputs[0]));
+    ctx.setValue(outputs[0], op.getResult());
 }
 
 #define ADD_CONST_CASE(BIT_WIDTH)                                                                  \
@@ -682,6 +705,24 @@ void deserializeInt(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reader&
         ADD_COMPARISON_CASE(LTE_S, lteS)
         ADD_COMPARISON_CASE(LT_U, ltU)
         ADD_COMPARISON_CASE(LTE_U, lteU)
+    case jeff::IntOp::SELECT:
+        deserializeIntSelect(builder, operation, ctx);
+        break;
+    case jeff::IntOp::EXT_S:
+        deserializeIntConversion<mlir::jeff::IntExtSOp>(builder, operation, ctx);
+        break;
+    case jeff::IntOp::EXT_U:
+        deserializeIntConversion<mlir::jeff::IntExtUOp>(builder, operation, ctx);
+        break;
+    case jeff::IntOp::TRUNC:
+        deserializeIntConversion<mlir::jeff::IntTruncOp>(builder, operation, ctx);
+        break;
+    case jeff::IntOp::TO_FLOAT_S:
+        deserializeIntConversion<mlir::jeff::IntToFloatSOp>(builder, operation, ctx);
+        break;
+    case jeff::IntOp::TO_FLOAT_U:
+        deserializeIntConversion<mlir::jeff::IntToFloatUOp>(builder, operation, ctx);
+        break;
     default:
         llvm::errs() << "Cannot deserialize int instruction " << intInstr.which() << "\n";
         llvm::report_fatal_error("Unknown int instruction");
@@ -892,6 +933,26 @@ void deserializeFloatIsOp(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::R
     ctx.setValue(outputs[0], op.getResult());
 }
 
+void deserializeFloatSelect(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reader& operation,
+                            DeserializationContext& ctx) {
+    const auto inputs = operation.getInputs();
+    const auto outputs = operation.getOutputs();
+    auto op = mlir::jeff::FloatSelectOp::create(builder, ctx.getValue(inputs[1]).getType(),
+                                                ctx.getValue(inputs[0]), ctx.getValue(inputs[1]),
+                                                ctx.getValue(inputs[2]));
+    ctx.setValue(outputs[0], op.getResult());
+}
+
+template <typename JeffOp>
+void deserializeFloatConversion(mlir::ImplicitLocOpBuilder& builder,
+                                const jeff::Op::Reader& operation, DeserializationContext& ctx) {
+    const auto inputs = operation.getInputs();
+    const auto outputs = operation.getOutputs();
+    auto op = JeffOp::create(builder, deserializeType(builder, ctx.getJeffType(outputs[0])),
+                             ctx.getValue(inputs[0]));
+    ctx.setValue(outputs[0], op.getResult());
+}
+
 #define ADD_CONST_CASE(BIT_WIDTH)                                                                  \
     case jeff::FloatOp::CONST##BIT_WIDTH:                                                          \
         deserializeFloatConst##BIT_WIDTH(builder, operation, ctx);                                 \
@@ -947,6 +1008,7 @@ void deserializeFloat(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reade
         ADD_BINARY_CASE(ADD, add)
         ADD_BINARY_CASE(SUB, sub)
         ADD_BINARY_CASE(MUL, mul)
+        ADD_BINARY_CASE(DIV, div)
         ADD_BINARY_CASE(POW, pow)
         ADD_BINARY_CASE(ATAN2, atan2)
         ADD_BINARY_CASE(MAX, max)
@@ -956,6 +1018,21 @@ void deserializeFloat(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reade
         ADD_COMPARISON_CASE(LTE, lte)
         ADD_IS_CASE(IS_NAN, Nan)
         ADD_IS_CASE(IS_INF, Inf)
+    case jeff::FloatOp::SELECT:
+        deserializeFloatSelect(builder, operation, ctx);
+        break;
+    case jeff::FloatOp::EXT:
+        deserializeFloatConversion<mlir::jeff::FloatExtOp>(builder, operation, ctx);
+        break;
+    case jeff::FloatOp::TRUNC:
+        deserializeFloatConversion<mlir::jeff::FloatTruncOp>(builder, operation, ctx);
+        break;
+    case jeff::FloatOp::TO_S_INT:
+        deserializeFloatConversion<mlir::jeff::FloatToSIntOp>(builder, operation, ctx);
+        break;
+    case jeff::FloatOp::TO_U_INT:
+        deserializeFloatConversion<mlir::jeff::FloatToUIntOp>(builder, operation, ctx);
+        break;
     default:
         llvm::errs() << "Cannot deserialize float instruction " << floatInstr.which() << "\n";
         llvm::report_fatal_error("Unknown float instruction");

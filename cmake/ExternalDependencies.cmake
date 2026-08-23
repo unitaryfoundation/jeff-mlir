@@ -6,7 +6,7 @@ if(BUILD_JEFF_MLIR_TRANSLATION)
     FetchContent_Declare(
         jeff
         GIT_REPOSITORY https://github.com/unitaryfoundation/jeff/
-        GIT_TAG jeff-v0.3.0
+        GIT_TAG 84d3d0a4471eb330377c23afa87af05a9cdda08e
     )
     list(APPEND FETCH_PACKAGES jeff)
 
