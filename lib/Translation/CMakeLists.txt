@@ -2,6 +2,7 @@ add_mlir_library(
     MLIRJeffTranslation
     Deserialize.cpp
     Serialize.cpp
+    ${jeff_SOURCE_DIR}/impl/cpp/src/capnp/jeff.capnp.c++
     DEPENDS
     MLIRJeffEnumsIncGen
     MLIRJeffInterfacesIncGen
@@ -19,5 +20,3 @@ target_include_directories(
     MLIRJeffTranslation PUBLIC ${jeff_SOURCE_DIR}/impl/cpp/src/capnp
                                ${jeff_BINARY_DIR}/impl/cpp/src/capnp
 )
-
-target_sources(MLIRJeffTranslation PRIVATE ${jeff_SOURCE_DIR}/impl/cpp/src/capnp/jeff.capnp.c++)
