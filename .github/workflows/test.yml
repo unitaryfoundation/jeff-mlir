@@ -32,8 +32,6 @@ jobs:
             preset: release
           - runs-on: macos-26
             preset: release
-          - runs-on: macos-26-intel
-            preset: release
           - runs-on: windows-2025
             preset: release-windows
     steps:
@@ -43,7 +41,7 @@ jobs:
       - name: Set up MLIR
         uses: munich-quantum-software/setup-mlir@3f32263ce571a8b745068980f30f188b6e800763 # v1.4.2
         with:
-          llvm-version: 22.1.8
+          llvm-version: 23.1.0
       - name: Configure
         run: cmake --preset ${{ matrix.preset }}
       - name: Build
