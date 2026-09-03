@@ -7,6 +7,11 @@ The project adheres to
 
 ## [Unreleased]
 
+Function calls can now refer to functions appearing later in a `.jeff` file.
+Deserialization registers all function signatures before reading their bodies,
+preserving function order and entrypoint indices instead of aborting on forward
+references.
+
 `serializeToFile()` now returns `mlir::LogicalResult` instead of `void` and
 reports a failure to open the output file through that result. Previously, it
 called `llvm::report_fatal_error()`, which aborts the process and leaves callers
