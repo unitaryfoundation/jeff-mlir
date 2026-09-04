@@ -1515,7 +1515,7 @@ mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
     const auto functions = jeffModule.getFunctions();
     ctx.funcs.reserve(functions.size());
 
-    // Register every signature before reading bodies so calls can reference later functions.
+    // Register every signature before reading bodies so calls can reference later functions
     uint16_t functionId = 0;
     for (const auto function : functions) {
         deserializeFunctionSignature(builder, function, functionId++, ctx);
