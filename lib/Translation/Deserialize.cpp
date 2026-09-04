@@ -1143,14 +1143,14 @@ void deserializeSwitch(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Read
     const auto branches = switchInstr.getBranches();
 
     llvm::SmallVector<mlir::Value> inValues;
-    llvm::SmallVector<mlir::Type> outTypes;
     inValues.reserve(inputs.size() - 1);
-    outTypes.reserve(operation.getOutputs().size());
     for (size_t i = 1; i < inputs.size(); ++i) {
         auto value = ctx.getValue(inputs[i]);
         inValues.push_back(value);
     }
 
+    llvm::SmallVector<mlir::Type> outTypes;
+    outTypes.reserve(operation.getOutputs().size());
     for (const auto output : operation.getOutputs()) {
         outTypes.push_back(deserializeType(builder, ctx.getJeffType(output)));
     }
@@ -1211,14 +1211,14 @@ void deserializeWhile(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reade
     const auto inputs = operation.getInputs();
 
     llvm::SmallVector<mlir::Value> inValues;
-    llvm::SmallVector<mlir::Type> outTypes;
     inValues.reserve(inputs.size());
-    outTypes.reserve(operation.getOutputs().size());
     for (const auto input : inputs) {
         auto value = ctx.getValue(input);
         inValues.push_back(value);
     }
 
+    llvm::SmallVector<mlir::Type> outTypes;
+    outTypes.reserve(operation.getOutputs().size());
     for (const auto output : operation.getOutputs()) {
         outTypes.push_back(deserializeType(builder, ctx.getJeffType(output)));
     }
