@@ -15,6 +15,8 @@
 #include <llvm/Support/raw_ostream.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/IR/MLIRContext.h>
+#include <mlir/IR/Verifier.h>
+#include <mlir/Parser/Parser.h>
 #include <mlir/Support/LLVM.h>
 
 #include <algorithm>
@@ -180,4 +182,51 @@ TEST(DeserializeFromFileTest, ReturnsNullForTruncatedFile) {
     fs::resize_file(truncated, fs::file_size(truncated) - 1);
 
     EXPECT_FALSE(deserializeFromFile(&context, truncated.string()));
+}
+
+TEST(DeserializeTest, IndependentControlFlowTuples) {
+    mlir::MLIRContext context;
+    context.loadDialect<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
+
+    for (const auto* source : {
+             R"MLIR(
+      func.func @main(%value: i32) -> (i1, i32) {
+        %flag, %result = jeff.while : (i32) -> (i1, i32) args(%before = %value) {
+          %false = jeff.int_const1(false) : i1
+          jeff.yield %false, %false, %before : i1, i1, i32
+        } args(%after_flag, %after_value) {
+          jeff.yield %after_value : i32
+        }
+        return %flag, %result : i1, i32
+      }
+    )MLIR",
+             R"MLIR(
+      func.func @main(%selector: i32, %value: i32, %flag: i1) -> i1 {
+        %result = jeff.switch (%selector, %value, %flag) : (i32, i32, i1) -> (i1)
+        case 0 args(%x, %p) {
+          jeff.yield %p : i1
+        }
+        default args(%x, %p) {
+          jeff.yield %p : i1
+        }
+        return %result : i1
+      }
+    )MLIR"}) {
+        SCOPED_TRACE(source);
+        auto original =
+            mlir::parseSourceString<mlir::ModuleOp>(std::string(R"MLIR(module attributes {
+              jeff.strings = ["main"], jeff.entrypoint = 0 : ui16,
+              jeff.tool = "test", jeff.toolVersion = "test",
+              jeff.version = 0 : ui16, jeff.versionMinor = 3 : ui16,
+              jeff.versionPatch = 0 : ui16
+            } {)MLIR") + source + "}",
+                                                    &context);
+        ASSERT_TRUE(original);
+        auto bytes = serialize(*original);
+        auto decoded = deserialize(&context, bytes);
+        ASSERT_TRUE(decoded);
+        ASSERT_TRUE(mlir::succeeded(mlir::verify(*decoded)));
+        auto reserialized = serialize(*decoded);
+        EXPECT_EQ(moduleTextFromBuffer(bytes), moduleTextFromBuffer(reserialized));
+    }
 }
