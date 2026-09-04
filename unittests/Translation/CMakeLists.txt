@@ -17,7 +17,9 @@ if(NOT TARGET ${test_name})
         PROPERTY LINK_DEPENDS ${generate_test_cases_stamp}
     )
 
-    target_link_libraries(${test_name} PRIVATE GTest::gtest_main MLIRJeff MLIRJeffTranslation)
+    target_link_libraries(
+        ${test_name} PRIVATE GTest::gtest_main MLIRJeff MLIRJeffTranslation MLIRParser
+    )
 
     target_compile_definitions(
         ${test_name} PRIVATE TEST_INPUTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../inputs"
