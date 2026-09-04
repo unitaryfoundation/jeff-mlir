@@ -1467,6 +1467,52 @@ def generate_scf_while() -> None:
 
 
 # ===----------------------------------------------------------------------=== #
+# Func operations
+# ===----------------------------------------------------------------------=== #
+
+
+@register_generator
+def generate_function_calls() -> None:
+    for callee_index in [0, 1]:
+        qubit = JeffValue(QubitType())
+        angle = JeffValue(FloatType(64))
+        rotation = quantum_gate("rz", qubits=[qubit], params=[angle])
+        callee = FunctionDef(
+            name="rotate",
+            body=JeffRegion(
+                sources=[qubit, angle],
+                targets=rotation.outputs,
+                operations=[rotation],
+            ),
+        )
+
+        alloc = qubit_alloc()
+        const = JeffOp("float", "const64", [], [JeffValue(FloatType(64))], 0.5)
+        call = JeffOp(
+            "func",
+            "funcCall",
+            [alloc.outputs[0], const.outputs[0]],
+            [JeffValue(QubitType())],
+            callee_index,
+        )
+        free = qubit_free(call.outputs[0])
+        caller = FunctionDef(
+            name="main",
+            body=JeffRegion(
+                sources=[], targets=[], operations=[alloc, const, call, free]
+            ),
+        )
+
+        functions = [caller]
+        functions.insert(callee_index, callee)
+        program = JeffModule(functions, entrypoint=1 - callee_index)
+        direction = "forward" if callee_index else "backward"
+        output_file = INPUTS_DIR / f"unit_func_call_{direction}.jeff"
+        output_file.unlink(missing_ok=True)
+        program.write_out(output_file)
+
+
+# ===----------------------------------------------------------------------=== #
 # Integration tests
 # ===----------------------------------------------------------------------=== #
 

@@ -1411,30 +1411,20 @@ auto deserializeOperations(mlir::ImplicitLocOpBuilder& builder,
     }
 }
 
-void deserializeFunction(mlir::ImplicitLocOpBuilder& builder,
-                         const jeff::Function::Reader& function, uint16_t functionId,
-                         DeserializationContext& ctx) {
-    ctx.values.clear();
-
+void deserializeFunctionSignature(mlir::ImplicitLocOpBuilder& builder,
+                                  const jeff::Function::Reader& function, uint16_t functionId,
+                                  DeserializationContext& ctx) {
     // Get function definition
     const auto definition = function.getDefinition();
 
     // Get values
     const auto jeffValues = definition.getValues();
-    ctx.jeffValues = jeffValues;
-    ctx.values.reserve(jeffValues.size());
 
     // Get function body
     if (!definition.hasBody()) {
         llvm::report_fatal_error("Function definition has no body");
     }
     const auto body = definition.getBody();
-
-    // Get operations
-    if (!body.hasOperations()) {
-        llvm::report_fatal_error("Function body has no operations");
-    }
-    const auto operations = body.getOperations();
 
     // Get sources
     const auto sources = body.getSources();
@@ -1443,7 +1433,7 @@ void deserializeFunction(mlir::ImplicitLocOpBuilder& builder,
     llvm::SmallVector<mlir::Type> sourceTypes;
     sourceTypes.reserve(sources.size());
     for (const auto source : sources) {
-        const auto jeffType = ctx.getJeffType(source);
+        const auto jeffType = jeffValues[source].getType();
         sourceTypes.push_back(deserializeType(builder, jeffType));
     }
 
@@ -1454,7 +1444,7 @@ void deserializeFunction(mlir::ImplicitLocOpBuilder& builder,
     llvm::SmallVector<mlir::Type> targetTypes;
     targetTypes.reserve(targets.size());
     for (auto target : targets) {
-        const auto jeffType = ctx.getJeffType(target);
+        const auto jeffType = jeffValues[target].getType();
         targetTypes.push_back(deserializeType(builder, jeffType));
     }
 
@@ -1463,6 +1453,21 @@ void deserializeFunction(mlir::ImplicitLocOpBuilder& builder,
     auto funcType = builder.getFunctionType(sourceTypes, targetTypes);
     auto func = mlir::func::FuncOp::create(builder, funcName, funcType);
     ctx.setFunc(functionId, func);
+}
+
+void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
+                             const jeff::Function::Reader& function, mlir::func::FuncOp func,
+                             DeserializationContext& ctx) {
+    ctx.values.clear();
+    ctx.jeffValues = function.getDefinition().getValues();
+    ctx.values.reserve(ctx.jeffValues.size());
+
+    const auto body = function.getDefinition().getBody();
+    if (!body.hasOperations()) {
+        llvm::report_fatal_error("Function body has no operations");
+    }
+    const auto operations = body.getOperations();
+    const auto sources = body.getSources();
 
     mlir::OpBuilder::InsertionGuard guard(builder);
     auto& entryBlock = *func.addEntryBlock();
@@ -1510,9 +1515,15 @@ mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
     const auto functions = jeffModule.getFunctions();
     ctx.funcs.reserve(functions.size());
 
+    // Register every signature before reading bodies so calls can reference later functions
     uint16_t functionId = 0;
     for (const auto function : functions) {
-        deserializeFunction(builder, function, functionId++, ctx);
+        deserializeFunctionSignature(builder, function, functionId++, ctx);
+    }
+
+    functionId = 0;
+    for (const auto function : functions) {
+        deserializeFunctionBody(builder, function, ctx.getFunc(functionId++), ctx);
     }
 
     // Set metadata
