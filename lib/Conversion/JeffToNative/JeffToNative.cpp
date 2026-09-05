@@ -469,6 +469,10 @@ struct JeffToNative final : impl::JeffToNativeBase<JeffToNative> {
             // Float operations
             jeff::FloatConst32Op, jeff::FloatConst64Op, jeff::FloatUnaryOp, jeff::FloatBinaryOp,
             jeff::FloatComparisonOp, jeff::FloatIsOp,
+            // Mixed operations
+            jeff::IntSelectOp, jeff::FloatSelectOp, jeff::IntExtSOp, jeff::IntExtUOp,
+            jeff::IntTruncOp, jeff::IntToFloatSOp, jeff::IntToFloatUOp, jeff::FloatExtOp,
+            jeff::FloatTruncOp, jeff::FloatToSIntOp, jeff::FloatToUIntOp,
             // IntArray operations
             jeff::IntArrayConst1Op, jeff::IntArrayConst8Op, jeff::IntArrayConst16Op,
             jeff::IntArrayConst32Op, jeff::IntArrayConst64Op, jeff::IntArrayZeroOp,

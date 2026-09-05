@@ -1223,7 +1223,7 @@ def generate_float_unary() -> None:
 
 @register_generator
 def generate_float_binary() -> None:
-    operations = ["add", "sub", "mul", "pow", "atan2", "max", "min"]
+    operations = ["add", "sub", "mul", "div", "pow", "atan2", "max", "min"]
     for operation in operations:
         lhs = JeffValue(FloatType(32))
         rhs = JeffValue(FloatType(32))
