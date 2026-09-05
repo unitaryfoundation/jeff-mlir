@@ -87,7 +87,23 @@ directory, for example `/path/to/installation/lib/cmake/mlir`.
 The `jeff-opt` tool will be located in the build directory under
 `./build/<preset>/lib/opt/jeff-opt`.
 
-TODO: Add instructions for setting up the dialect as an MLIR plugin.
+## Contributions
+
+`jeff-mlir` is hosted by the [Unitary Foundation](https://unitary.foundation/)
+and is a collaboration between developers and researchers at
+[Xanadu](https://www.xanadu.ai), [MQSC](https://mq.sc/), and the
+[Chair for Design Automation at TUM](https://www.cda.cit.tum.de/).
+
+Your contributions help improve the tool for everyone! There are many ways you
+can contribute, such as:
+
+- Opening issues to share bugs or request features.
+- Taking part in the development discussion and helping us shape the roadmap of
+  `jeff-mlir`.
+- Integrating `jeff-mlir` with quantum compilers.
+
+If you have questions about contributing, please ask on the Unitary Foundation
+Discord.
 
 ## License
 
