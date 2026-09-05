@@ -1187,8 +1187,6 @@ void deserializeOperations(mlir::ImplicitLocOpBuilder& builder,
                            const capnp::List<jeff::Op>::Reader& operations,
                            DeserializationContext& ctx);
 
-mlir::Type deserializeType(mlir::ImplicitLocOpBuilder& builder, const jeff::Type::Reader& type);
-
 void deserializeBlock(mlir::ImplicitLocOpBuilder& builder, mlir::Block& block,
                       mlir::TypeRange argTypes, const jeff::Region::Reader& region,
                       DeserializationContext& ctx) {
