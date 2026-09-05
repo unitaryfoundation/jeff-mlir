@@ -3,7 +3,7 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
-#   "jeff-format~=0.1.0",
+#   "jeff-format @ git+https://github.com/unitaryfoundation/jeff.git@84d3d0a4471eb330377c23afa87af05a9cdda08e#subdirectory=impl/py",
 # ]
 # ///
 
@@ -785,6 +785,166 @@ def generate_int_comparison() -> None:
         module.write_out(output_file)
 
 
+@register_generator
+def generate_int_select() -> None:
+    condition = JeffValue(IntType(1))
+    a = JeffValue(IntType(32))
+    b = JeffValue(IntType(32))
+    select = JeffOp(
+        "int",
+        "select",
+        [condition, a, b],
+        [JeffValue(IntType(32))],
+    )
+    compute_body = JeffRegion(
+        sources=[condition, a, b],
+        targets=[select.outputs[0]],
+        operations=[select],
+    )
+    compute_function = FunctionDef(name="compute", body=compute_body)
+
+    const1 = JeffOp("int", "const1", [], [JeffValue(IntType(1))], True)
+    const2 = JeffOp("int", "const32", [], [JeffValue(IntType(32))], 3)
+    const3 = JeffOp("int", "const32", [], [JeffValue(IntType(32))], 5)
+    call = JeffOp(
+        "func",
+        "funcCall",
+        [const1.outputs[0], const2.outputs[0], const3.outputs[0]],
+        [JeffValue(IntType(32))],
+        0,
+    )
+    main_body = JeffRegion(
+        sources=[],
+        targets=[],
+        operations=[const1, const2, const3, call],
+    )
+    main_function = FunctionDef(name="main", body=main_body)
+
+    module = JeffModule([compute_function, main_function], entrypoint=1)
+
+    output_file = INPUTS_DIR / "unit_int_select.jeff"
+    output_file.unlink(missing_ok=True)
+    module.write_out(output_file)
+
+
+@register_generator
+def generate_int_ext() -> None:
+    operations = ["extS", "extU"]
+    for operation in operations:
+        a = JeffValue(IntType(32))
+        ext = JeffOp(
+            "int",
+            operation,
+            [a],
+            [JeffValue(IntType(64))],
+        )
+        compute_body = JeffRegion(
+            sources=[a],
+            targets=[ext.outputs[0]],
+            operations=[ext],
+        )
+        compute_function = FunctionDef(name="compute", body=compute_body)
+
+        const = JeffOp("int", "const32", [], [JeffValue(IntType(32))], 3)
+        call = JeffOp(
+            "func",
+            "funcCall",
+            [const.outputs[0]],
+            [JeffValue(IntType(64))],
+            0,
+        )
+        main_body = JeffRegion(
+            sources=[],
+            targets=[],
+            operations=[const, call],
+        )
+        main_function = FunctionDef(name="main", body=main_body)
+
+        module = JeffModule([compute_function, main_function], entrypoint=1)
+
+        output_file = INPUTS_DIR / f"unit_int_{operation}.jeff"
+        output_file.unlink(missing_ok=True)
+        module.write_out(output_file)
+
+
+@register_generator
+def generate_int_trunc() -> None:
+    a = JeffValue(IntType(64))
+    trunc = JeffOp(
+        "int",
+        "trunc",
+        [a],
+        [JeffValue(IntType(32))],
+    )
+    compute_body = JeffRegion(
+        sources=[a],
+        targets=[trunc.outputs[0]],
+        operations=[trunc],
+    )
+    compute_function = FunctionDef(name="compute", body=compute_body)
+
+    const = JeffOp("int", "const64", [], [JeffValue(IntType(64))], 3)
+    call = JeffOp(
+        "func",
+        "funcCall",
+        [const.outputs[0]],
+        [JeffValue(IntType(32))],
+        0,
+    )
+    main_body = JeffRegion(
+        sources=[],
+        targets=[],
+        operations=[const, call],
+    )
+    main_function = FunctionDef(name="main", body=main_body)
+
+    module = JeffModule([compute_function, main_function], entrypoint=1)
+
+    output_file = INPUTS_DIR / "unit_int_trunc.jeff"
+    output_file.unlink(missing_ok=True)
+    module.write_out(output_file)
+
+
+@register_generator
+def generate_int_to_float() -> None:
+    operations = ["toFloatS", "toFloatU"]
+    for operation in operations:
+        a = JeffValue(IntType(64))
+        to_float = JeffOp(
+            "int",
+            operation,
+            [a],
+            [JeffValue(FloatType(64))],
+        )
+        compute_body = JeffRegion(
+            sources=[a],
+            targets=[to_float.outputs[0]],
+            operations=[to_float],
+        )
+        compute_function = FunctionDef(name="compute", body=compute_body)
+
+        const = JeffOp("int", "const64", [], [JeffValue(IntType(64))], 3)
+        call = JeffOp(
+            "func",
+            "funcCall",
+            [const.outputs[0]],
+            [JeffValue(FloatType(64))],
+            0,
+        )
+        main_body = JeffRegion(
+            sources=[],
+            targets=[],
+            operations=[const, call],
+        )
+        main_function = FunctionDef(name="main", body=main_body)
+
+        module = JeffModule([compute_function, main_function], entrypoint=1)
+
+        output_file = INPUTS_DIR / f"unit_int_{operation}.jeff"
+        output_file.unlink(missing_ok=True)
+        module.write_out(output_file)
+
+
 # ===----------------------------------------------------------------------=== #
 # IntArray operations
 # ===----------------------------------------------------------------------=== #
@@ -1063,7 +1223,7 @@ def generate_float_unary() -> None:
 
 @register_generator
 def generate_float_binary() -> None:
-    operations = ["add", "sub", "mul", "pow", "atan2", "max", "min"]
+    operations = ["add", "sub", "mul", "div", "pow", "atan2", "max", "min"]
     for operation in operations:
         lhs = JeffValue(FloatType(32))
         rhs = JeffValue(FloatType(32))
@@ -1179,6 +1339,164 @@ def generate_float_is() -> None:
         main_function = FunctionDef(name="main", body=main_body)
 
         module = JeffModule([check_function, main_function], entrypoint=1)
+
+        output_file = INPUTS_DIR / f"unit_float_{operation}.jeff"
+        output_file.unlink(missing_ok=True)
+        module.write_out(output_file)
+
+
+@register_generator
+def generate_float_select() -> None:
+    condition = JeffValue(IntType(1))
+    a = JeffValue(FloatType(32))
+    b = JeffValue(FloatType(32))
+    select = JeffOp(
+        "float",
+        "select",
+        [condition, a, b],
+        [JeffValue(FloatType(32))],
+    )
+    compute_body = JeffRegion(
+        sources=[condition, a, b],
+        targets=[select.outputs[0]],
+        operations=[select],
+    )
+    compute_function = FunctionDef(name="compute", body=compute_body)
+
+    const1 = JeffOp("int", "const1", [], [JeffValue(IntType(1))], True)
+    const2 = JeffOp("float", "const32", [], [JeffValue(FloatType(32))], 0.3)
+    const3 = JeffOp("float", "const32", [], [JeffValue(FloatType(32))], 0.5)
+    call = JeffOp(
+        "func",
+        "funcCall",
+        [const1.outputs[0], const2.outputs[0], const3.outputs[0]],
+        [JeffValue(FloatType(32))],
+        0,
+    )
+    main_body = JeffRegion(
+        sources=[],
+        targets=[],
+        operations=[const1, const2, const3, call],
+    )
+    main_function = FunctionDef(name="main", body=main_body)
+
+    module = JeffModule([compute_function, main_function], entrypoint=1)
+
+    output_file = INPUTS_DIR / "unit_float_select.jeff"
+    output_file.unlink(missing_ok=True)
+    module.write_out(output_file)
+
+
+@register_generator
+def generate_float_ext() -> None:
+    a = JeffValue(FloatType(32))
+    ext = JeffOp(
+        "float",
+        "ext",
+        [a],
+        [JeffValue(FloatType(64))],
+    )
+    compute_body = JeffRegion(
+        sources=[a],
+        targets=[ext.outputs[0]],
+        operations=[ext],
+    )
+    compute_function = FunctionDef(name="compute", body=compute_body)
+
+    const = JeffOp("float", "const32", [], [JeffValue(FloatType(32))], 0.3)
+    call = JeffOp(
+        "func",
+        "funcCall",
+        [const.outputs[0]],
+        [JeffValue(FloatType(64))],
+        0,
+    )
+    main_body = JeffRegion(
+        sources=[],
+        targets=[],
+        operations=[const, call],
+    )
+    main_function = FunctionDef(name="main", body=main_body)
+
+    module = JeffModule([compute_function, main_function], entrypoint=1)
+
+    output_file = INPUTS_DIR / "unit_float_ext.jeff"
+    output_file.unlink(missing_ok=True)
+    module.write_out(output_file)
+
+
+@register_generator
+def generate_float_trunc() -> None:
+    a = JeffValue(FloatType(64))
+    trunc = JeffOp(
+        "float",
+        "trunc",
+        [a],
+        [JeffValue(FloatType(32))],
+    )
+    compute_body = JeffRegion(
+        sources=[a],
+        targets=[trunc.outputs[0]],
+        operations=[trunc],
+    )
+    compute_function = FunctionDef(name="compute", body=compute_body)
+
+    const = JeffOp("float", "const64", [], [JeffValue(FloatType(64))], 0.3)
+    call = JeffOp(
+        "func",
+        "funcCall",
+        [const.outputs[0]],
+        [JeffValue(FloatType(32))],
+        0,
+    )
+    main_body = JeffRegion(
+        sources=[],
+        targets=[],
+        operations=[const, call],
+    )
+    main_function = FunctionDef(name="main", body=main_body)
+
+    module = JeffModule([compute_function, main_function], entrypoint=1)
+
+    output_file = INPUTS_DIR / "unit_float_trunc.jeff"
+    output_file.unlink(missing_ok=True)
+    module.write_out(output_file)
+
+
+@register_generator
+def generate_float_to_int() -> None:
+    operations = ["toSInt", "toUInt"]
+    for operation in operations:
+        a = JeffValue(FloatType(64))
+        to_int = JeffOp(
+            "float",
+            operation,
+            [a],
+            [JeffValue(IntType(64))],
+        )
+        compute_body = JeffRegion(
+            sources=[a],
+            targets=[to_int.outputs[0]],
+            operations=[to_int],
+        )
+        compute_function = FunctionDef(name="compute", body=compute_body)
+
+        const = JeffOp("float", "const64", [], [JeffValue(FloatType(64))], 0.3)
+        call = JeffOp(
+            "func",
+            "funcCall",
+            [const.outputs[0]],
+            [JeffValue(IntType(64))],
+            0,
+        )
+        main_body = JeffRegion(
+            sources=[],
+            targets=[],
+            operations=[const, call],
+        )
+        main_function = FunctionDef(name="main", body=main_body)
+
+        module = JeffModule([compute_function, main_function], entrypoint=1)
 
         output_file = INPUTS_DIR / f"unit_float_{operation}.jeff"
         output_file.unlink(missing_ok=True)

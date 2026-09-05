@@ -1227,6 +1227,7 @@ def FloatBinaryOperation : I32EnumAttr<"FloatBinaryOperation",
         I32EnumAttrCase<"_add",   0>,
         I32EnumAttrCase<"_sub",   1>,
         I32EnumAttrCase<"_mul",   2>,
+        I32EnumAttrCase<"_div",   7>,
         I32EnumAttrCase<"_pow",   3>,
         I32EnumAttrCase<"_atan2", 4>,
         I32EnumAttrCase<"_max",   5>,
@@ -1429,6 +1430,116 @@ def IntComparisonOp : Int_Op<"int_comp_op", []> {
     // %2 = jeff.int_comp_op [0] (%0, %1) : i64, i64 -> i1
     let assemblyFormat = [{
         `[` $op `]` `(` $a `,` $b `)` attr-dict `:` type($a) `,` type($b) `->` type($c)
+    }];
+}
+
+def IntSelectOp : Int_Op<"int_select", []> {
+    let summary = "";
+    let description = [{}];
+
+    let arguments = (ins
+        I1:$condition,
+        SupportedIntType:$a,
+        SupportedIntType:$b
+    );
+
+    let results = (outs
+        SupportedIntType:$c
+    );
+
+    // %c = jeff.int_select $condition, $a, %b : i64, i64 -> i64
+    let assemblyFormat = [{
+        $condition `,` $a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($c)
+    }];
+}
+
+def IntExtSOp : Int_Op<"int_ext_s", []> {
+    let summary = "";
+    let description = [{}];
+
+    let arguments = (ins
+        SupportedIntType:$a
+    );
+
+    let results = (outs
+        SupportedIntType:$b
+    );
+
+    // %b = jeff.int_ext_s $a : i32 -> i64
+    let assemblyFormat = [{
+        $a attr-dict `:` type($a) `->` type($b)
+    }];
+}
+
+def IntExtUOp : Int_Op<"int_ext_u", []> {
+    let summary = "";
+    let description = [{}];
+
+    let arguments = (ins
+        SupportedIntType:$a
+    );
+
+    let results = (outs
+        SupportedIntType:$b
+    );
+
+    // %b = jeff.int_ext_u $a : i32 -> i64
+    let assemblyFormat = [{
+        $a attr-dict `:` type($a) `->` type($b)
+    }];
+}
+
+def IntTruncOp : Int_Op<"int_trunc", []> {
+    let summary = "";
+    let description = [{}];
+
+    let arguments = (ins
+        SupportedIntType:$a
+    );
+
+    let results = (outs
+        SupportedIntType:$b
+    );
+
+    // %b = jeff.int_trunc $a : i64 -> i32
+    let assemblyFormat = [{
+        $a attr-dict `:` type($a) `->` type($b)
+    }];
+}
+
+def IntToFloatSOp : Int_Op<"int_to_float_s", []> {
+    let summary = "";
+    let description = [{}];
+
+    let arguments = (ins
+        SupportedIntType:$a
+    );
+
+    let results = (outs
+        SupportedFloatType:$b
+    );
+
+    // %b = jeff.int_to_float_s $a : i64 -> f64
+    let assemblyFormat = [{
+        $a attr-dict `:` type($a) `->` type($b)
+    }];
+}
+
+def IntToFloatUOp : Int_Op<"int_to_float_u", []> {
+    let summary = "";
+    let description = [{}];
+
+    let arguments = (ins
+        SupportedIntType:$a
+    );
+
+    let results = (outs
+        SupportedFloatType:$b
+    );
+
+    // %b = jeff.int_to_float_u $a : i64 -> f64
+    let assemblyFormat = [{
+        $a attr-dict `:` type($a) `->` type($b)
     }];
 }
 
@@ -1738,6 +1849,98 @@ def FloatIsOp : Float_Op<"float_is_op", []> {
     // %1 = jeff.float_is_op [0] (%0) : f64 -> i1
     let assemblyFormat = [{
        `[` $op `]` `(` $a `)` attr-dict `:` type($a) `->` type($b)
+    }];
+}
+
+def FloatSelectOp : Float_Op<"float_select", []> {
+    let summary = "";
+    let description = [{}];
+
+    let arguments = (ins
+        I1:$condition,
+        SupportedFloatType:$a,
+        SupportedFloatType:$b
+    );
+
+    let results = (outs
+        SupportedFloatType:$c
+    );
+
+    // %c = jeff.float_select $condition, $a, %b : f64, f64 -> f64
+    let assemblyFormat = [{
+        $condition `,` $a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($c)
+    }];
+}
+
+def FloatExtOp : Float_Op<"float_ext", []> {
+    let summary = "";
+    let description = [{}];
+
+    let arguments = (ins
+        SupportedFloatType:$a
+    );
+
+    let results = (outs
+        SupportedFloatType:$b
+    );
+
+    // %b = jeff.float_ext $a : f32 -> f64
+    let assemblyFormat = [{
+        $a attr-dict `:` type($a) `->` type($b)
+    }];
+}
+
+def FloatTruncOp : Float_Op<"float_trunc", []> {
+    let summary = "";
+    let description = [{}];
+
+    let arguments = (ins
+        SupportedFloatType:$a
+    );
+
+    let results = (outs
+        SupportedFloatType:$b
+    );
+
+    // %b = jeff.float_trunc $a : f64 -> f32
+    let assemblyFormat = [{
+        $a attr-dict `:` type($a) `->` type($b)
+    }];
+}
+
+def FloatToSIntOp : Float_Op<"float_to_s_int", []> {
+    let summary = "";
+    let description = [{}];
+
+    let arguments = (ins
+        SupportedFloatType:$a
+    );
+
+    let results = (outs
+        SupportedIntType:$b
+    );
+
+    // %b = jeff.float_to_s_int $a : f64 -> i64
+    let assemblyFormat = [{
+        $a attr-dict `:` type($a) `->` type($b)
+    }];
+}
+
+def FloatToUIntOp : Float_Op<"float_to_u_int", []> {
+    let summary = "";
+    let description = [{}];
+
+    let arguments = (ins
+        SupportedFloatType:$a
+    );
+
+    let results = (outs
+        SupportedIntType:$b
+    );
+
+    // %b = jeff.float_to_u_int $a : f64 -> i64
+    let assemblyFormat = [{
+        $a attr-dict `:` type($a) `->` type($b)
     }];
 }
 

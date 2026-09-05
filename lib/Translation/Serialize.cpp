@@ -719,6 +719,37 @@ void serializeIntComparison(jeff::Op::Builder builder, mlir::jeff::IntComparison
     outputs.set(0, ctx.getValueId(op.getResult()));
 }
 
+void serializeIntSelect(jeff::Op::Builder builder, mlir::jeff::IntSelectOp op,
+                        SerializationContext& ctx) {
+    auto intBuilder = builder.initInstruction().initInt();
+    intBuilder.setSelect();
+
+    auto inputs = builder.initInputs(3);
+    inputs.set(0, ctx.getValueId(op.getCondition()));
+    inputs.set(1, ctx.getValueId(op.getA()));
+    inputs.set(2, ctx.getValueId(op.getB()));
+
+    auto outputs = builder.initOutputs(1);
+    outputs.set(0, ctx.getValueId(op.getC()));
+}
+
+void serializeFloatConversion(jeff::Op::Builder builder, mlir::jeff::IntOperation operation,
+                              SerializationContext& ctx) {
+    auto intBuilder = builder.initInstruction().initInt();
+    llvm::TypeSwitch<mlir::Operation*, void>(operation)
+        .Case<mlir::jeff::IntExtSOp>([&](auto) { intBuilder.setExtS(); })
+        .Case<mlir::jeff::IntExtUOp>([&](auto) { intBuilder.setExtU(); })
+        .Case<mlir::jeff::IntTruncOp>([&](auto) { intBuilder.setTrunc(); })
+        .Case<mlir::jeff::IntToFloatSOp>([&](auto) { intBuilder.setToFloatS(); })
+        .Case<mlir::jeff::IntToFloatUOp>([&](auto) { intBuilder.setToFloatU(); });
+
+    auto inputs = builder.initInputs(1);
+    inputs.set(0, ctx.getValueId(operation->getOperand(0)));
+
+    auto outputs = builder.initOutputs(1);
+    outputs.set(0, ctx.getValueId(operation->getResult(0)));
+}
+
 void serializeInt(jeff::Op::Builder builder, mlir::jeff::IntOperation operation,
                   SerializationContext& ctx) {
     llvm::TypeSwitch<mlir::Operation*, void>(operation)
@@ -731,6 +762,10 @@ void serializeInt(jeff::Op::Builder builder, mlir::jeff::IntOperation operation,
         .Case<mlir::jeff::IntBinaryOp>([&](auto op) { serializeIntBinary(builder, op, ctx); })
         .Case<mlir::jeff::IntComparisonOp>(
             [&](auto op) { serializeIntComparison(builder, op, ctx); })
+        .Case<mlir::jeff::IntSelectOp>([&](auto op) { serializeIntSelect(builder, op, ctx); })
+        .Case<mlir::jeff::IntExtSOp, mlir::jeff::IntExtUOp, mlir::jeff::IntTruncOp,
+              mlir::jeff::IntToFloatSOp, mlir::jeff::IntToFloatUOp>(
+            [&](auto) { serializeFloatConversion(builder, operation, ctx); })
         .Default([&](auto) {
             llvm::errs() << "Cannot serialize int operation " << operation->getName() << "\n";
             llvm::report_fatal_error("Unknown int operation");
@@ -987,6 +1022,9 @@ void serializeFloatBinary(jeff::Op::Builder builder, mlir::jeff::FloatBinaryOp o
     case mlir::jeff::FloatBinaryOperation::_mul:
         floatBuilder.setMul();
         break;
+    case mlir::jeff::FloatBinaryOperation::_div:
+        floatBuilder.setDiv();
+        break;
     case mlir::jeff::FloatBinaryOperation::_pow:
         floatBuilder.setPow();
         break;
@@ -1057,6 +1095,36 @@ void serializeFloatIs(jeff::Op::Builder builder, mlir::jeff::FloatIsOp op,
     outputs.set(0, ctx.getValueId(op.getResult()));
 }
 
+void serializeFloatSelect(jeff::Op::Builder builder, mlir::jeff::FloatSelectOp op,
+                          SerializationContext& ctx) {
+    auto floatBuilder = builder.initInstruction().initFloat();
+    floatBuilder.setSelect();
+
+    auto inputs = builder.initInputs(3);
+    inputs.set(0, ctx.getValueId(op.getCondition()));
+    inputs.set(1, ctx.getValueId(op.getA()));
+    inputs.set(2, ctx.getValueId(op.getB()));
+
+    auto outputs = builder.initOutputs(1);
+    outputs.set(0, ctx.getValueId(op.getC()));
+}
+
+void serializeFloatConversion(jeff::Op::Builder builder, mlir::jeff::FloatOperation operation,
+                              SerializationContext& ctx) {
+    auto floatBuilder = builder.initInstruction().initFloat();
+    llvm::TypeSwitch<mlir::Operation*, void>(operation)
+        .Case<mlir::jeff::FloatExtOp>([&](auto) { floatBuilder.setExt(); })
+        .Case<mlir::jeff::FloatTruncOp>([&](auto) { floatBuilder.setTrunc(); })
+        .Case<mlir::jeff::FloatToSIntOp>([&](auto) { floatBuilder.setToSInt(); })
+        .Case<mlir::jeff::FloatToUIntOp>([&](auto) { floatBuilder.setToUInt(); });
+
+    auto inputs = builder.initInputs(1);
+    inputs.set(0, ctx.getValueId(operation->getOperand(0)));
+
+    auto outputs = builder.initOutputs(1);
+    outputs.set(0, ctx.getValueId(operation->getResult(0)));
+}
+
 void serializeFloat(jeff::Op::Builder builder, mlir::jeff::FloatOperation operation,
                     SerializationContext& ctx) {
     llvm::TypeSwitch<mlir::Operation*, void>(operation)
@@ -1067,6 +1135,10 @@ void serializeFloat(jeff::Op::Builder builder, mlir::jeff::FloatOperation operat
         .Case<mlir::jeff::FloatComparisonOp>(
             [&](auto op) { serializeFloatComparison(builder, op, ctx); })
         .Case<mlir::jeff::FloatIsOp>([&](auto op) { serializeFloatIs(builder, op, ctx); })
+        .Case<mlir::jeff::FloatSelectOp>([&](auto op) { serializeFloatSelect(builder, op, ctx); })
+        .Case<mlir::jeff::FloatExtOp, mlir::jeff::FloatTruncOp, mlir::jeff::FloatToSIntOp,
+              mlir::jeff::FloatToUIntOp>(
+            [&](auto) { serializeFloatConversion(builder, operation, ctx); })
         .Default([&](auto) {
             llvm::errs() << "Cannot serialize float operation " << operation->getName() << "\n";
             llvm::report_fatal_error("Unknown float operation");
