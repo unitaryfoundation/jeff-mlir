@@ -7,16 +7,22 @@ The project adheres to
 
 ## [Unreleased]
 
-Function calls can now refer to functions appearing later in a `.jeff` file.
-Deserialization registers all function signatures before reading their bodies,
-preserving function order and entrypoint indices instead of aborting on forward
-references.
+The dialect now supports floating-point division; integer and floating-point
+select, extension, and truncation operations; and signed and unsigned
+conversions between integer and floating-point values. All new operations
+support serialization, deserialization, and conversion to and from native MLIR
+operations.
 
 `serializeToFile()` now returns `mlir::LogicalResult` instead of `void` and
 reports a failure to open the output file through that result. Previously, it
 called `llvm::report_fatal_error()`, which aborts the process and leaves callers
 no way to handle the error. For the same reason, `deserializeFromFile()` now
 returns a null module instead of aborting when the input file cannot be read.
+
+Function calls can now refer to functions appearing later in a `.jeff` file.
+Deserialization registers all function signatures before reading their bodies,
+preserving function order and entrypoint indices instead of aborting on forward
+references.
 
 ## [0.3.0] - 2026-07-13
 
