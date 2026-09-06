@@ -7,6 +7,7 @@ if(BUILD_JEFF_MLIR_TRANSLATION)
         jeff
         GIT_REPOSITORY https://github.com/unitaryfoundation/jeff/
         GIT_TAG jeff-v0.3.0
+        EXCLUDE_FROM_ALL
     )
     list(APPEND FETCH_PACKAGES jeff)
 
@@ -23,6 +24,7 @@ if(BUILD_JEFF_MLIR_TRANSLATION)
         capnproto
         GIT_REPOSITORY https://github.com/capnproto/capnproto.git
         GIT_TAG v1.5.0
+        EXCLUDE_FROM_ALL
     )
     list(APPEND FETCH_PACKAGES capnproto)
 endif()

@@ -7,6 +7,8 @@ The project adheres to
 
 ## [Unreleased]
 
+Building from source now requires CMake 3.28 or newer.
+
 Function calls can now refer to functions appearing later in a `.jeff` file.
 Deserialization registers all function signatures before reading their bodies,
 preserving function order and entrypoint indices instead of aborting on forward
