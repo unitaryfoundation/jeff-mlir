@@ -12,7 +12,7 @@ The dialect sources can be incorporated directly into an existing project
 supports building the dialect as a standalone project which generates a custom
 `opt` tool.
 
-To do so, make sure you have an existing MLIR build.
+To do so, make sure you have CMake 3.28 or newer and an existing MLIR build.
 
 <details>
 <summary>If you don't ...</summary>
