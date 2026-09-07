@@ -7,18 +7,29 @@ The project adheres to
 
 ## [Unreleased]
 
+### Minimum CMake version raised to 3.28
+
 Building from source now requires CMake 3.28 or newer.
+
+### Fix deserialization of forward function calls
 
 Function calls can now refer to functions appearing later in a `.jeff` file.
 Deserialization registers all function signatures before reading their bodies,
 preserving function order and entrypoint indices instead of aborting on forward
 references.
 
+### Improve error handling
+
 `serializeToFile()` now returns `mlir::LogicalResult` instead of `void` and
 reports a failure to open the output file through that result. Previously, it
 called `llvm::report_fatal_error()`, which aborts the process and leaves callers
 no way to handle the error. For the same reason, `deserializeFromFile()` now
 returns a null module instead of aborting when the input file cannot be read.
+
+`deserialize()` and `deserializeFromFile()` now also report deserialization
+errors through MLIR diagnostics and return a null module instead of aborting the
+process. Cap’n Proto parsing errors are caught at the same boundary, so callers
+can handle failed imports and continue importing other modules.
 
 ## [0.3.0] - 2026-07-13
 
