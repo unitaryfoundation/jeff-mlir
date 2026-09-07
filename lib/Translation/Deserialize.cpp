@@ -1501,8 +1501,8 @@ void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
     mlir::func::ReturnOp::create(builder, results);
 }
 
-mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
-                                              const jeff::Module::Reader& jeffModule) {
+mlir::OwningOpRef<mlir::ModuleOp> deserializeModule(mlir::MLIRContext* context,
+                                                    const jeff::Module::Reader& jeffModule) {
     DeserializationContext ctx;
 
     // Create MLIR builder
@@ -1581,7 +1581,7 @@ mlir::OwningOpRef<mlir::ModuleOp> deserializeBuffer(mlir::MLIRContext* context,
     mlir::OwningOpRef<mlir::ModuleOp> result;
     auto exception = kj::runCatchingExceptions([&] {
         capnp::FlatArrayMessageReader message(buffer);
-        result = deserialize(context, message.getRoot<jeff::Module>());
+        result = deserializeModule(context, message.getRoot<jeff::Module>());
     });
     KJ_IF_MAYBE (error, exception) {
         mlir::emitError(mlir::UnknownLoc::get(context))
@@ -1590,6 +1590,7 @@ mlir::OwningOpRef<mlir::ModuleOp> deserializeBuffer(mlir::MLIRContext* context,
     }
     return result;
 }
+
 } // namespace
 
 mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
