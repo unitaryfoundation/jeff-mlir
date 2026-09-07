@@ -15,17 +15,6 @@ conversions between integer and floating-point values. All new operations
 support serialization, deserialization, and conversion to and from native MLIR
 operations.
 
-### Minimum CMake version raised to 3.28
-
-Building from source now requires CMake 3.28 or newer.
-
-### Fix deserialization of forward function calls
-
-Function calls can now refer to functions appearing later in a `.jeff` file.
-Deserialization registers all function signatures before reading their bodies,
-preserving function order and entrypoint indices instead of aborting on forward
-references.
-
 ### Improve error handling
 
 `serializeToFile()` now returns `mlir::LogicalResult` instead of `void` and
@@ -36,8 +25,19 @@ returns a null module instead of aborting when the input file cannot be read.
 
 `deserialize()` and `deserializeFromFile()` now also report deserialization
 errors through MLIR diagnostics and return a null module instead of aborting the
-process. Cap’n Proto parsing errors are caught at the same boundary, so callers
+process. Cap'n Proto parsing errors are caught at the same boundary, so callers
 can handle failed imports and continue importing other modules.
+
+### Fix deserialization of forward function calls
+
+Function calls can now refer to functions appearing later in a `.jeff` file.
+Deserialization registers all function signatures before reading their bodies,
+preserving function order and entrypoint indices instead of aborting on forward
+references.
+
+### Minimum CMake version raised to 3.28
+
+Building from source now requires CMake 3.28 or newer.
 
 ## [0.3.0] - 2026-07-13
 
