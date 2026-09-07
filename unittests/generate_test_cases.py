@@ -3,7 +3,7 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
-#   "jeff-format @ git+https://github.com/unitaryfoundation/jeff.git@84d3d0a4471eb330377c23afa87af05a9cdda08e#subdirectory=impl/py",
+#   "jeff-format @ git+https://github.com/unitaryfoundation/jeff.git@3bf34d222f250f5cdcdf13510cab4b4740c0c1a3#subdirectory=impl/py",
 # ]
 # ///
 

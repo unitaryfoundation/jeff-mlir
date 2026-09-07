@@ -6,7 +6,8 @@ if(BUILD_JEFF_MLIR_TRANSLATION)
     FetchContent_Declare(
         jeff
         GIT_REPOSITORY https://github.com/unitaryfoundation/jeff/
-        GIT_TAG 84d3d0a4471eb330377c23afa87af05a9cdda08e
+        GIT_TAG 3bf34d222f250f5cdcdf13510cab4b4740c0c1a3
+        EXCLUDE_FROM_ALL
     )
     list(APPEND FETCH_PACKAGES jeff)
 
@@ -23,8 +24,15 @@ if(BUILD_JEFF_MLIR_TRANSLATION)
         capnproto
         GIT_REPOSITORY https://github.com/capnproto/capnproto.git
         GIT_TAG v1.5.0
+        EXCLUDE_FROM_ALL
     )
-    list(APPEND FETCH_PACKAGES capnproto)
+    block(SCOPE_FOR VARIABLES)
+    # KJ and the parser must unwind to the deserializer's exception handler.
+    if(MSVC)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+    endif()
+    FetchContent_MakeAvailable(capnproto)
+    endblock()
 endif()
 
 if(BUILD_JEFF_MLIR_TESTS)

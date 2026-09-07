@@ -8,12 +8,13 @@
 #include <capnp/serialize.h>
 #include <jeff.capnp.h>
 #include <kj/common.h>
+#include <kj/debug.h>
+#include <kj/exception.h>
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/Alignment.h>
 #include <llvm/Support/Casting.h>
-#include <llvm/Support/ErrorHandling.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/raw_ostream.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
@@ -23,6 +24,7 @@
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/BuiltinTypeInterfaces.h>
 #include <mlir/IR/BuiltinTypes.h>
+#include <mlir/IR/Diagnostics.h>
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/OwningOpRef.h>
 #include <mlir/IR/Value.h>
@@ -46,7 +48,7 @@ struct DeserializationContext {
         auto it = values.find(id);
         if (it == values.end()) {
             llvm::errs() << "Value " << id << " not found\n";
-            llvm::report_fatal_error("Value not found");
+            KJ_FAIL_REQUIRE("Value not found") {}
         }
         return it->second;
     }
@@ -54,7 +56,7 @@ struct DeserializationContext {
     void setValue(uint32_t id, mlir::Value value) {
         if (values.contains(id)) {
             llvm::errs() << "Value " << id << " already exists\n";
-            llvm::report_fatal_error("Value already exists");
+            KJ_FAIL_REQUIRE("Value already exists") {}
         }
         values[id] = value;
     }
@@ -63,7 +65,7 @@ struct DeserializationContext {
         auto it = funcs.find(id);
         if (it == funcs.end()) {
             llvm::errs() << "Function " << id << " not found\n";
-            llvm::report_fatal_error("Function not found");
+            KJ_FAIL_REQUIRE("Function not found") {}
         }
         return it->second;
     }
@@ -71,7 +73,7 @@ struct DeserializationContext {
     void setFunc(uint16_t id, mlir::func::FuncOp func) {
         if (funcs.contains(id)) {
             llvm::errs() << "Function " << id << " already exists\n";
-            llvm::report_fatal_error("Function already exists");
+            KJ_FAIL_REQUIRE("Function already exists") {}
         }
         funcs[id] = func;
     }
@@ -103,7 +105,7 @@ struct DeserializationContext {
             }
         default:
             llvm::errs() << "Value " << id << " does not have a length\n";
-            llvm::report_fatal_error("Value does not have a length");
+            KJ_FAIL_REQUIRE("Value does not have a length") {}
         }
     }
 };
@@ -303,7 +305,7 @@ void deserializeWellKnown(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::R
     default:
         llvm::errs() << "Cannot deserialize well-known gate " << static_cast<int>(wellKnown)
                      << "\n";
-        llvm::report_fatal_error("Unknown well-known gate");
+        KJ_FAIL_REQUIRE("Unknown well-known gate") {}
     }
 }
 
@@ -389,7 +391,7 @@ void deserializeGate(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reader
         break;
     default:
         llvm::errs() << "Cannot deserialize gate instruction " << gate.which() << "\n";
-        llvm::report_fatal_error("Unknown gate instruction");
+        KJ_FAIL_REQUIRE("Unknown gate instruction") {}
     }
 }
 
@@ -419,7 +421,7 @@ void deserializeQubit(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reade
         break;
     default:
         llvm::errs() << "Cannot deserialize qubit instruction " << qubit.which() << "\n";
-        llvm::report_fatal_error("Unknown qubit instruction");
+        KJ_FAIL_REQUIRE("Unknown qubit instruction") {}
     }
 }
 
@@ -570,7 +572,7 @@ void deserializeQureg(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reade
         break;
     default:
         llvm::errs() << "Cannot deserialize qureg instruction " << qureg.which() << "\n";
-        llvm::report_fatal_error("Unknown qureg instruction");
+        KJ_FAIL_REQUIRE("Unknown qureg instruction") {}
     }
 }
 
@@ -725,7 +727,7 @@ void deserializeInt(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reader&
         break;
     default:
         llvm::errs() << "Cannot deserialize int instruction " << intInstr.which() << "\n";
-        llvm::report_fatal_error("Unknown int instruction");
+        KJ_FAIL_REQUIRE("Unknown int instruction") {}
     }
 }
 
@@ -870,7 +872,7 @@ void deserializeIntArray(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Re
         break;
     default:
         llvm::errs() << "Cannot deserialize int array instruction " << intArray.which() << "\n";
-        llvm::report_fatal_error("Unknown int array instruction");
+        KJ_FAIL_REQUIRE("Unknown int array instruction") {}
     }
 }
 
@@ -1035,7 +1037,7 @@ void deserializeFloat(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reade
         break;
     default:
         llvm::errs() << "Cannot deserialize float instruction " << floatInstr.which() << "\n";
-        llvm::report_fatal_error("Unknown float instruction");
+        KJ_FAIL_REQUIRE("Unknown float instruction") {}
     }
 }
 
@@ -1095,7 +1097,7 @@ void deserializeFloatArrayZero(mlir::ImplicitLocOpBuilder& builder,
         floatType = builder.getF64Type();
         break;
     default:
-        llvm::report_fatal_error("Invalid bit width");
+        KJ_FAIL_REQUIRE("Invalid bit width") {}
     }
     auto tensorType = mlir::RankedTensorType::get({ctx.getLength(outputs[0])}, floatType);
     auto op = mlir::jeff::FloatArrayZeroOp::create(builder, tensorType, ctx.getValue(inputs[0]));
@@ -1174,7 +1176,7 @@ void deserializeFloatArray(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::
         break;
     default:
         llvm::errs() << "Cannot deserialize float array instruction " << floatArray.which() << "\n";
-        llvm::report_fatal_error("Unknown float array instruction");
+        KJ_FAIL_REQUIRE("Unknown float array instruction") {}
     }
 }
 
@@ -1325,7 +1327,7 @@ void deserializeScf(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reader&
         break;
     default:
         llvm::errs() << "Cannot deserialize scf instruction " << scf.which() << "\n";
-        llvm::report_fatal_error("Unknown scf instruction");
+        KJ_FAIL_REQUIRE("Unknown scf instruction") {}
     }
 }
 
@@ -1378,7 +1380,7 @@ mlir::Type deserializeIntType(mlir::ImplicitLocOpBuilder& builder, const jeff::T
         return builder.getI64Type();
     default:
         llvm::errs() << "Cannot deserialize int type " << static_cast<int>(type.getInt()) << "\n";
-        llvm::report_fatal_error("Unknown int type");
+        KJ_FAIL_REQUIRE("Unknown int type") {}
     }
 }
 
@@ -1403,7 +1405,7 @@ mlir::Type deserializeIntArrayType(mlir::ImplicitLocOpBuilder& builder,
     default:
         llvm::errs() << "Cannot deserialize int array type with bit width "
                      << static_cast<int>(intArrayType.getBitwidth()) << "\n";
-        llvm::report_fatal_error("Unknown int array type");
+        KJ_FAIL_REQUIRE("Unknown int array type") {}
     }
 }
 
@@ -1417,7 +1419,7 @@ mlir::FloatType deserializeFloatType(mlir::ImplicitLocOpBuilder& builder,
     default:
         llvm::errs() << "Cannot deserialize float type " << static_cast<int>(type.getFloat())
                      << "\n";
-        llvm::report_fatal_error("Unknown float type");
+        KJ_FAIL_REQUIRE("Unknown float type") {}
     }
 }
 
@@ -1436,7 +1438,7 @@ mlir::Type deserializeFloatArrayType(mlir::ImplicitLocOpBuilder& builder,
     default:
         llvm::errs() << "Cannot deserialize float array type with precision "
                      << static_cast<int>(floatArrayType.getPrecision()) << "\n";
-        llvm::report_fatal_error("Unknown float array type");
+        KJ_FAIL_REQUIRE("Unknown float array type") {}
     }
 }
 
@@ -1456,7 +1458,7 @@ mlir::Type deserializeType(mlir::ImplicitLocOpBuilder& builder, const jeff::Type
         return deserializeFloatArrayType(builder, type);
     default:
         llvm::errs() << "Cannot deserialize type " << type.which() << "\n";
-        llvm::report_fatal_error("Unknown type");
+        KJ_FAIL_REQUIRE("Unknown type") {}
     }
 }
 
@@ -1491,7 +1493,7 @@ auto deserializeOperations(mlir::ImplicitLocOpBuilder& builder,
             break;
         default:
             llvm::errs() << "Cannot deserialize instruction " << instruction.which() << "\n";
-            llvm::report_fatal_error("Unknown instruction");
+            KJ_FAIL_REQUIRE("Unknown instruction") {}
         }
     }
 }
@@ -1507,7 +1509,7 @@ void deserializeFunctionSignature(mlir::ImplicitLocOpBuilder& builder,
 
     // Get function body
     if (!definition.hasBody()) {
-        llvm::report_fatal_error("Function definition has no body");
+        KJ_FAIL_REQUIRE("Function definition has no body") {}
     }
     const auto body = definition.getBody();
 
@@ -1549,7 +1551,7 @@ void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
 
     const auto body = function.getDefinition().getBody();
     if (!body.hasOperations()) {
-        llvm::report_fatal_error("Function body has no operations");
+        KJ_FAIL_REQUIRE("Function body has no operations") {}
     }
     const auto operations = body.getOperations();
     const auto sources = body.getSources();
@@ -1574,8 +1576,8 @@ void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
     mlir::func::ReturnOp::create(builder, results);
 }
 
-mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
-                                              const jeff::Module::Reader& jeffModule) {
+mlir::OwningOpRef<mlir::ModuleOp> deserializeModule(mlir::MLIRContext* context,
+                                                    const jeff::Module::Reader& jeffModule) {
     DeserializationContext ctx;
 
     // Create MLIR builder
@@ -1584,6 +1586,7 @@ mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
     // Create MLIR module
     mlir::OpBuilder::InsertionGuard guard(builder);
     auto mlirModule = mlir::ModuleOp::create(builder);
+    mlir::OwningOpRef<mlir::ModuleOp> ownedModule(mlirModule);
     builder.setInsertionPointToStart(mlirModule.getBody());
 
     // Get strings
@@ -1595,7 +1598,7 @@ mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
 
     // Get functions
     if (!jeffModule.hasFunctions()) {
-        llvm::report_fatal_error("No functions found in module");
+        KJ_FAIL_REQUIRE("No functions found in module") {}
     }
     const auto functions = jeffModule.getFunctions();
     ctx.funcs.reserve(functions.size());
@@ -1642,19 +1645,32 @@ mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
     if (mlir::verify(mlirModule).failed()) {
         llvm::errs() << "Verification of MLIR module failed\n";
         mlirModule->print(llvm::errs());
-        llvm::report_fatal_error("Verification of MLIR module failed");
+        KJ_FAIL_REQUIRE("Verification of MLIR module failed") {}
     }
 
-    return mlirModule;
+    return ownedModule;
 }
+
+mlir::OwningOpRef<mlir::ModuleOp> deserializeBuffer(mlir::MLIRContext* context,
+                                                    kj::ArrayPtr<const capnp::word> buffer) {
+    mlir::OwningOpRef<mlir::ModuleOp> result;
+    auto exception = kj::runCatchingExceptions([&] {
+        capnp::FlatArrayMessageReader message(buffer);
+        result = deserializeModule(context, message.getRoot<jeff::Module>());
+    });
+    KJ_IF_MAYBE (error, exception) {
+        mlir::emitError(mlir::UnknownLoc::get(context))
+            << "Failed to deserialize jeff: " << error->getDescription().cStr();
+        return {};
+    }
+    return result;
+}
+
 } // namespace
 
 mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
                                               kj::ArrayPtr<capnp::word> buffer) {
-    DeserializationContext ctx;
-
-    capnp::FlatArrayMessageReader message(buffer);
-    return deserialize(context, message.getRoot<jeff::Module>());
+    return deserializeBuffer(context, buffer);
 }
 
 mlir::OwningOpRef<mlir::ModuleOp> deserializeFromFile(mlir::MLIRContext* context,
@@ -1682,7 +1698,5 @@ mlir::OwningOpRef<mlir::ModuleOp> deserializeFromFile(mlir::MLIRContext* context
     const auto words = kj::ArrayPtr(reinterpret_cast<const capnp::word*>(bytes.data()),
                                     bytes.size() / sizeof(capnp::word));
 
-    capnp::FlatArrayMessageReader message(words);
-    const jeff::Module::Reader jeffModule = message.getRoot<jeff::Module>();
-    return deserialize(context, jeffModule);
+    return deserializeBuffer(context, words);
 }

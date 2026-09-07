@@ -25,6 +25,9 @@
       "name": "base-windows",
       "hidden": true,
       "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": ""
+      },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",

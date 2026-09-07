@@ -1,3 +1,8 @@
+# Cap'n Proto reports malformed data through KJ exceptions. Keep unwinding local
+# to the translation library so callers can continue to build without exceptions.
+set(LLVM_REQUIRES_EH ON)
+set(LLVM_REQUIRES_RTTI ON)
+
 add_mlir_library(
     MLIRJeffTranslation
     Deserialize.cpp
