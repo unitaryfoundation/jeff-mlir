@@ -254,6 +254,9 @@ struct ConvertJeffFloatBinaryOp final : OpConversionPattern<jeff::FloatBinaryOp>
         case jeff::FloatBinaryOperation::_mul:
             rewriter.replaceOpWithNewOp<arith::MulFOp>(op, a, b);
             break;
+        case jeff::FloatBinaryOperation::_div:
+            rewriter.replaceOpWithNewOp<arith::DivFOp>(op, a, b);
+            break;
         case jeff::FloatBinaryOperation::_pow:
             rewriter.replaceOpWithNewOp<math::PowFOp>(op, a, b);
             break;
@@ -313,6 +316,32 @@ struct ConvertJeffFloatIsOp final : OpConversionPattern<jeff::FloatIsOp> {
         default:
             return rewriter.notifyMatchFailure(op, "Unknown is operation");
         }
+        return success();
+    }
+};
+
+//===----------------------------------------------------------------------===//
+// Mixed operations
+//===----------------------------------------------------------------------===//
+
+template <typename JeffOp> struct ConvertJeffSelectOp final : OpConversionPattern<JeffOp> {
+    using OpConversionPattern<JeffOp>::OpConversionPattern;
+
+    LogicalResult matchAndRewrite(JeffOp op, typename JeffOp::Adaptor adaptor,
+                                  ConversionPatternRewriter& rewriter) const override {
+        rewriter.replaceOpWithNewOp<arith::SelectOp>(op, adaptor.getCondition(), adaptor.getA(),
+                                                     adaptor.getB());
+        return success();
+    }
+};
+
+template <typename JeffOp, typename ArithOp>
+struct ConvertJeffConversionOp final : OpConversionPattern<JeffOp> {
+    using OpConversionPattern<JeffOp>::OpConversionPattern;
+
+    LogicalResult matchAndRewrite(JeffOp op, typename JeffOp::Adaptor adaptor,
+                                  ConversionPatternRewriter& rewriter) const override {
+        rewriter.replaceOpWithNewOp<ArithOp>(op, op.getB().getType(), adaptor.getA());
         return success();
     }
 };
@@ -440,6 +469,10 @@ struct JeffToNative final : impl::JeffToNativeBase<JeffToNative> {
             // Float operations
             jeff::FloatConst32Op, jeff::FloatConst64Op, jeff::FloatUnaryOp, jeff::FloatBinaryOp,
             jeff::FloatComparisonOp, jeff::FloatIsOp,
+            // Mixed operations
+            jeff::IntSelectOp, jeff::FloatSelectOp, jeff::IntExtSOp, jeff::IntExtUOp,
+            jeff::IntTruncOp, jeff::IntToFloatSOp, jeff::IntToFloatUOp, jeff::FloatExtOp,
+            jeff::FloatTruncOp, jeff::FloatToSIntOp, jeff::FloatToUIntOp,
             // IntArray operations
             jeff::IntArrayConst1Op, jeff::IntArrayConst8Op, jeff::IntArrayConst16Op,
             jeff::IntArrayConst32Op, jeff::IntArrayConst64Op, jeff::IntArrayZeroOp,
@@ -473,6 +506,17 @@ void populateJeffToNativeConversionPatterns(RewritePatternSet& patterns) {
         ConvertJeffFloatConstOp<jeff::FloatConst32Op>,
         ConvertJeffFloatConstOp<jeff::FloatConst64Op>, ConvertJeffFloatUnaryOp,
         ConvertJeffFloatBinaryOp, ConvertJeffFloatComparisonOp, ConvertJeffFloatIsOp,
+        // Mixed operations
+        ConvertJeffSelectOp<jeff::IntSelectOp>, ConvertJeffSelectOp<jeff::FloatSelectOp>,
+        ConvertJeffConversionOp<jeff::IntExtSOp, arith::ExtSIOp>,
+        ConvertJeffConversionOp<jeff::IntExtUOp, arith::ExtUIOp>,
+        ConvertJeffConversionOp<jeff::IntTruncOp, arith::TruncIOp>,
+        ConvertJeffConversionOp<jeff::IntToFloatSOp, arith::SIToFPOp>,
+        ConvertJeffConversionOp<jeff::IntToFloatUOp, arith::UIToFPOp>,
+        ConvertJeffConversionOp<jeff::FloatExtOp, arith::ExtFOp>,
+        ConvertJeffConversionOp<jeff::FloatTruncOp, arith::TruncFOp>,
+        ConvertJeffConversionOp<jeff::FloatToSIntOp, arith::FPToSIOp>,
+        ConvertJeffConversionOp<jeff::FloatToUIntOp, arith::FPToUIOp>,
         // IntArray operations
         ConvertJeffIntArrayConstOp<jeff::IntArrayConst1Op>,
         ConvertJeffIntArrayConstOp<jeff::IntArrayConst8Op>,

@@ -330,6 +330,41 @@ struct ConvertMathFloatIsOp final : OpConversionPattern<MathOp> {
 };
 
 //===----------------------------------------------------------------------===//
+// Mixed operations
+//===----------------------------------------------------------------------===//
+
+struct ConvertArithSelectOp final : OpConversionPattern<arith::SelectOp> {
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult matchAndRewrite(arith::SelectOp op, OpAdaptor adaptor,
+                                  ConversionPatternRewriter& rewriter) const override {
+        if (llvm::isa<IntegerType>(op.getType())) {
+            rewriter.replaceOpWithNewOp<jeff::IntSelectOp>(op, op.getType(), adaptor.getCondition(),
+                                                           adaptor.getTrueValue(),
+                                                           adaptor.getFalseValue());
+        } else if (llvm::isa<FloatType>(op.getType())) {
+            rewriter.replaceOpWithNewOp<jeff::FloatSelectOp>(
+                op, op.getType(), adaptor.getCondition(), adaptor.getTrueValue(),
+                adaptor.getFalseValue());
+        } else {
+            return rewriter.notifyMatchFailure(op, "Unsupported result type");
+        }
+        return success();
+    }
+};
+
+template <typename ArithOp, typename JeffOp>
+struct ConvertArithConversionOp final : OpConversionPattern<ArithOp> {
+    using OpConversionPattern<ArithOp>::OpConversionPattern;
+
+    LogicalResult matchAndRewrite(ArithOp op, typename ArithOp::Adaptor adaptor,
+                                  ConversionPatternRewriter& rewriter) const override {
+        rewriter.replaceOpWithNewOp<JeffOp>(op, op.getType(), adaptor.getIn());
+        return success();
+    }
+};
+
+//===----------------------------------------------------------------------===//
 // IntArray/FloatArray operations
 //===----------------------------------------------------------------------===//
 
@@ -529,12 +564,23 @@ void populateNativeToJeffConversionPatterns(RewritePatternSet& patterns) {
         ConvertArithFloatBinaryOp<arith::AddFOp, jeff::FloatBinaryOperation::_add>,
         ConvertArithFloatBinaryOp<arith::SubFOp, jeff::FloatBinaryOperation::_sub>,
         ConvertArithFloatBinaryOp<arith::MulFOp, jeff::FloatBinaryOperation::_mul>,
+        ConvertArithFloatBinaryOp<arith::DivFOp, jeff::FloatBinaryOperation::_div>,
         ConvertMathFloatBinaryOp<math::Atan2Op, jeff::FloatBinaryOperation::_atan2>,
         ConvertMathFloatBinaryOp<math::PowFOp, jeff::FloatBinaryOperation::_pow>,
         ConvertArithFloatBinaryOp<arith::MaxNumFOp, jeff::FloatBinaryOperation::_max>,
         ConvertArithFloatBinaryOp<arith::MinNumFOp, jeff::FloatBinaryOperation::_min>,
         ConvertArithCmpFOp, ConvertMathFloatIsOp<math::IsNaNOp, jeff::FloatIsOperation::_isNan>,
         ConvertMathFloatIsOp<math::IsInfOp, jeff::FloatIsOperation::_isInf>,
+        // Mixed operations
+        ConvertArithSelectOp, ConvertArithConversionOp<arith::ExtSIOp, jeff::IntExtSOp>,
+        ConvertArithConversionOp<arith::ExtUIOp, jeff::IntExtUOp>,
+        ConvertArithConversionOp<arith::TruncIOp, jeff::IntTruncOp>,
+        ConvertArithConversionOp<arith::SIToFPOp, jeff::IntToFloatSOp>,
+        ConvertArithConversionOp<arith::UIToFPOp, jeff::IntToFloatUOp>,
+        ConvertArithConversionOp<arith::ExtFOp, jeff::FloatExtOp>,
+        ConvertArithConversionOp<arith::TruncFOp, jeff::FloatTruncOp>,
+        ConvertArithConversionOp<arith::FPToSIOp, jeff::FloatToSIntOp>,
+        ConvertArithConversionOp<arith::FPToUIOp, jeff::FloatToUIntOp>,
         // IntArray/FloatArray operations
         ConvertTensorEmptyOp, ConvertTensorExtractOp, ConvertTensorInsertOp, ConvertTensorDimOp,
         ConvertTensorFromElementsOp,
