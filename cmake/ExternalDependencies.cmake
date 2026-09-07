@@ -26,7 +26,13 @@ if(BUILD_JEFF_MLIR_TRANSLATION)
         GIT_TAG v1.5.0
         EXCLUDE_FROM_ALL
     )
-    list(APPEND FETCH_PACKAGES capnproto)
+    block(SCOPE_FOR VARIABLES)
+    # KJ and the parser must unwind to the deserializer's exception handler.
+    if(MSVC)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+    endif()
+    FetchContent_MakeAvailable(capnproto)
+    endblock()
 endif()
 
 if(BUILD_JEFF_MLIR_TESTS)
