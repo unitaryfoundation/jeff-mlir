@@ -7,6 +7,10 @@ The project adheres to
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-11
+
+This release is compatible with `jeff-v0.3.1`.
+
 ### Expand arithmetic operation support
 
 The dialect now supports floating-point division; integer and floating-point
@@ -72,7 +76,8 @@ This release is compatible with `jeff-v0.2.0`.
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/PennyLaneAI/jeff-mlir/compare/v0.3.0...HEAD
+[unreleased]: https://github.com/PennyLaneAI/jeff-mlir/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/PennyLaneAI/jeff-mlir/tree/v0.4.0
 [0.3.0]: https://github.com/PennyLaneAI/jeff-mlir/tree/v0.3.0
 [0.2.0]: https://github.com/PennyLaneAI/jeff-mlir/tree/v0.2.0
 [0.1.0]: https://github.com/PennyLaneAI/jeff-mlir/tree/v0.1.0
