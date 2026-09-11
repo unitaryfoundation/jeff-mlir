@@ -39,6 +39,12 @@ Deserialization registers all function signatures before reading their bodies,
 preserving function order and entrypoint indices instead of aborting on forward
 references.
 
+### Fix deserialization of independent input and result types
+
+`SwitchOp` and `WhileOp` now deserialize correctly when their inputs and results
+differ in type or number. Previously, deserialization incorrectly derived result
+types from the inputs.
+
 ### Minimum CMake version raised to 3.28
 
 Building from source now requires CMake 3.28 or newer.
@@ -76,8 +82,8 @@ This release is compatible with `jeff-v0.2.0`.
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/PennyLaneAI/jeff-mlir/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/PennyLaneAI/jeff-mlir/tree/v0.4.0
-[0.3.0]: https://github.com/PennyLaneAI/jeff-mlir/tree/v0.3.0
-[0.2.0]: https://github.com/PennyLaneAI/jeff-mlir/tree/v0.2.0
-[0.1.0]: https://github.com/PennyLaneAI/jeff-mlir/tree/v0.1.0
+[unreleased]: https://github.com/unitaryfoundation/jeff-mlir/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/unitaryfoundation/jeff-mlir/tree/v0.4.0
+[0.3.0]: https://github.com/unitaryfoundation/jeff-mlir/tree/v0.3.0
+[0.2.0]: https://github.com/unitaryfoundation/jeff-mlir/tree/v0.2.0
+[0.1.0]: https://github.com/unitaryfoundation/jeff-mlir/tree/v0.1.0
