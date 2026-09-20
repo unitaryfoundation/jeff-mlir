@@ -26,9 +26,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runs-on: ubuntu-24.04
+          - runs-on: ubuntu-26.04
             preset: release
-          - runs-on: ubuntu-24.04-arm
+          - runs-on: ubuntu-26.04-arm
             preset: release
           - runs-on: macos-26
             preset: release
