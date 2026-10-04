@@ -2,7 +2,10 @@
 #include "jeff/Translation/Deserialize.hpp"
 #include "jeff/Translation/Serialize.hpp"
 
+#include <capnp/any.h>
+#include <capnp/blob.h>
 #include <capnp/common.h>
+#include <capnp/list.h>
 #include <capnp/message.h>
 #include <capnp/serialize.h>
 #include <gtest/gtest.h>
@@ -14,6 +17,7 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/raw_ostream.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
+#include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/Diagnostics.h>
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/Verifier.h>
@@ -22,6 +26,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <ios>
@@ -269,7 +274,117 @@ TEST(DeserializeTest, DiagnosesRejectedModulesAndContinuesImporting) {
         region.initOperations(0);
     }
     checkRejected(duplicateFunctions, "Verification of MLIR module failed");
+
+    capnp::MallocMessageBuilder invalidInputName;
+    auto namedModule = invalidInputName.initRoot<jeff::Module>();
+    namedModule.initStrings(2).set(0, "main");
+    namedModule.getStrings().set(1, "jeff.input_name");
+    auto named = namedModule.initFunctions(1)[0].initDefinition();
+    auto value = named.initValues(1)[0];
+    value.initType().setFloat(jeff::FloatPrecision::FLOAT64);
+    auto region = named.initBody();
+    region.initSources(1).set(0, 0);
+    region.initTargets(0);
+    region.initOperations(0);
+    auto metadata = value.initMetadata(1)[0];
+    metadata.setName(2);
+    checkRejected(invalidInputName, "Input metadata name index out of bounds");
+    metadata.setName(1);
+    checkRejected(invalidInputName, "Missing input name metadata value");
+    metadata.getValue().initAs<capnp::List<uint32_t>>(1);
+    checkRejected(invalidInputName, "Failed to deserialize jeff");
+    for (auto duplicate : value.initMetadata(2)) {
+        duplicate.setName(1);
+        duplicate.getValue().setAs<capnp::Text>("theta");
+    }
+    checkRejected(invalidInputName, "Duplicate input name metadata");
     fs::remove(input);
+}
+
+TEST(DeserializeTest, ReadsInputNamesBySourceIndex) {
+    mlir::MLIRContext context;
+    context.loadDialect<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
+
+    capnp::MallocMessageBuilder message;
+    auto module = message.initRoot<jeff::Module>();
+    auto strings = module.initStrings(3);
+    strings.set(0, "main");
+    strings.set(1, "jeff.input_name");
+    strings.set(2, std::string("jeff.input_name") + '\0' + "ignored");
+    auto definition = module.initFunctions(1)[0].initDefinition();
+    auto values = definition.initValues(3);
+    for (auto value : values) {
+        value.initType().setFloat(jeff::FloatPrecision::FLOAT64);
+    }
+    auto metadata = values[0].initMetadata(2);
+    metadata[0].setName(2);
+    metadata[0].getValue().initAs<capnp::List<uint32_t>>(1);
+    metadata[1].setName(1);
+    metadata[1].getValue().setAs<capnp::Text>("theta");
+    auto body = definition.initBody();
+    auto sources = body.initSources(3);
+    sources.set(0, 2);
+    sources.set(1, 0);
+    sources.set(2, 1);
+    body.initTargets(0);
+    body.initOperations(0);
+
+    auto words = capnp::messageToFlatArray(message);
+    auto decoded = deserialize(&context, words);
+    ASSERT_TRUE(decoded);
+    auto func = *decoded->getOps<mlir::func::FuncOp>().begin();
+    EXPECT_FALSE(func.getArgAttr(0, "jeff.input_name"));
+    EXPECT_EQ(func.getArgAttr(1, "jeff.input_name"), mlir::StringAttr::get(&context, "theta"));
+    EXPECT_FALSE(func.getArgAttr(2, "jeff.input_name"));
+}
+
+TEST(SerializeTest, PreservesNamedFunctionInputs) {
+    mlir::MLIRContext context;
+    context.loadDialect<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
+
+    for (const auto* strings :
+         {R"(["main", "helper"])", R"(["main", "helper", "jeff.input_name"])"}) {
+        SCOPED_TRACE(strings);
+        auto original = mlir::parseSourceString<mlir::ModuleOp>(
+            std::string("module attributes { jeff.strings = ") + strings + R"MLIR(,
+              jeff.entrypoint = 0 : ui16, jeff.tool = "test", jeff.toolVersion = "test",
+              jeff.version = 0 : ui16, jeff.versionMinor = 3 : ui16,
+              jeff.versionPatch = 1 : ui16
+            } {
+              func.func @main(%flag: i1, %theta: f64 {jeff.input_name = "theta"},
+                              %phi: f64 {jeff.input_name = "φ"}) -> f64 {
+                %result = func.call @helper(%theta) : (f64) -> f64
+                return %result : f64
+              }
+              func.func @helper(%x: f64 {jeff.input_name = "x"}) -> f64 {
+                return %x : f64
+              }
+            })MLIR",
+            &context);
+        ASSERT_TRUE(original);
+        auto originalStrings = (*original)->getAttr("jeff.strings");
+        auto words = serialize(*original);
+        capnp::FlatArrayMessageReader message(words);
+        auto serialized = message.getRoot<jeff::Module>();
+        EXPECT_EQ(serialized.getStrings().size(), 3);
+        auto definition = serialized.getFunctions()[0].getDefinition();
+        auto metadata = definition.getValues()[definition.getBody().getSources()[1]].getMetadata();
+        ASSERT_EQ(metadata.size(), 1);
+        EXPECT_EQ(metadata[0].getName(), 2);
+        EXPECT_EQ(metadata[0].getValue().getAs<capnp::Text>(), "theta");
+
+        auto decoded = deserialize(&context, words);
+        ASSERT_TRUE(decoded);
+        ASSERT_TRUE(mlir::succeeded(mlir::verify(*decoded)));
+        auto originalFunc = original->getOps<mlir::func::FuncOp>().begin();
+        for (auto func : decoded->getOps<mlir::func::FuncOp>()) {
+            EXPECT_EQ(func.getAllArgAttrs(), (*originalFunc).getAllArgAttrs());
+            ++originalFunc;
+        }
+        auto reserialized = serialize(*decoded);
+        EXPECT_EQ(moduleTextFromBuffer(words), moduleTextFromBuffer(reserialized));
+        EXPECT_EQ((*original)->getAttr("jeff.strings"), originalStrings);
+    }
 }
 
 TEST(DeserializeTest, IndependentControlFlowTuples) {
