@@ -26,6 +26,10 @@ include "mlir/IR/AttrTypeBase.td"
 def JeffDialect : Dialect {
     let summary = "A jeff dialect.";
     let description = [{
+        The `jeff` dialect represents the `jeff` quantum program exchange format
+        in MLIR. It provides quantum types and operations alongside classical
+        computation and structured control flow.
+
         Function arguments may carry a `jeff.input_name` string attribute for
         their source-level name. It does not change execution semantics.
         Serialization stores it on the function body's source value as metadata
