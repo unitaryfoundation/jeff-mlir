@@ -13,7 +13,9 @@
 #include <llvm/Support/raw_ostream.h>
 
 #include <string>
+#ifdef _WIN32
 #include <utility>
+#endif
 
 namespace jeff::test {
 
