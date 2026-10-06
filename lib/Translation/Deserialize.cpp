@@ -1563,8 +1563,9 @@ void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
     builder.setInsertionPointToStart(&entryBlock);
 
     for (auto i = 0; i < sources.size(); ++i) {
-        ctx.setValue(sources[i], entryBlock.getArgument(i));
-        for (auto metadata : ctx.jeffValues[sources[i]].getMetadata()) {
+        const auto source = sources[i];
+        ctx.setValue(source, entryBlock.getArgument(i));
+        for (auto metadata : ctx.jeffValues[source].getMetadata()) {
             KJ_REQUIRE(metadata.getName() < ctx.strings.size(),
                        "Input metadata name index out of bounds") {}
             if (ctx.strings[metadata.getName()] != "jeff.input_name") {

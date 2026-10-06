@@ -36,8 +36,6 @@ def JeffDialect : Dialect {
         named `jeff.input_name` with a Cap'n Proto `Text` payload. Deserialization
         restores it on each defined function's arguments. Files without this
         metadata remain readable and their arguments remain unnamed.
-
-        Other argument attributes and unknown metadata are not preserved.
     }];
 
     /// This is the namespace of the dialect in MLIR, which is used as a prefix for types and ops.

@@ -35,7 +35,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 
 static void checkRank(mlir::RankedTensorType tensorType) {
     if (tensorType.getRank() != 1) {
@@ -1562,6 +1561,7 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
         serializeType(typeBuilder, values[v].getType());
     }
 
+    // Serialize input names
     for (unsigned arg = 0; arg < numSources; ++arg) {
         auto attr = func.getArgAttr(arg, "jeff.input_name");
         if (!attr) {
@@ -1601,13 +1601,10 @@ void writeMessage(mlir::ModuleOp module, capnp::MallocMessageBuilder& message) {
         }
     }
     const auto numStrings = strings.size();
-    if (numStrings > static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1) {
-        llvm::report_fatal_error("String table exceeds the jeff StringIndex limit");
-    }
     auto stringsBuilder = moduleBuilder.initStrings(numStrings);
-    for (size_t i = 0; i < numStrings; ++i) {
-        ctx.strings[strings[i]] = static_cast<uint16_t>(i);
-        stringsBuilder.set(i, strings[i].str());
+    for (auto [i, str] : llvm::enumerate(strings)) {
+        ctx.strings[str] = static_cast<uint16_t>(i);
+        stringsBuilder.set(i, str.str());
     }
 
     // Build functions
