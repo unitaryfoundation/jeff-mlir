@@ -29,13 +29,6 @@ def JeffDialect : Dialect {
         The `jeff` dialect represents the `jeff` quantum program exchange format
         in MLIR. It provides quantum types and operations alongside classical
         computation and structured control flow.
-
-        Function arguments may carry a `jeff.input_name` string attribute for
-        their source-level name. It does not change execution semantics.
-        Serialization stores it on the function body's source value as metadata
-        named `jeff.input_name` with a Cap'n Proto `Text` payload. Deserialization
-        restores it on each defined function's arguments. Files without this
-        metadata remain readable and their arguments remain unnamed.
     }];
 
     /// This is the namespace of the dialect in MLIR, which is used as a prefix for types and ops.

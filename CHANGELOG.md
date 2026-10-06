@@ -10,8 +10,7 @@ The project adheres to
 ### Preserve function input names
 
 Tools can now identify function inputs by their source-level names after
-serializing and deserializing programs through `jeff`. Names use existing value
-metadata, so no format change is required and older files remain readable.
+serializing and deserializing programs through `jeff` using existing metadata.
 
 ## [0.4.0] - 2026-09-11
 
