@@ -61,32 +61,32 @@ std::string readJeffFileToText(llvm::StringRef path) {
     capnp::readMessageCopyFromFd(autoCloseFd, message);
 #endif
 
-    const auto module = message.getRoot<jeff::Module>();
-    return module.toString().flatten().cStr();
+    const auto jeffModule = message.getRoot<jeff::Module>();
+    return jeffModule.toString().flatten().cStr();
 }
 
 std::string moduleTextFromBuffer(const kj::ArrayPtr<capnp::word>& buffer) {
     capnp::FlatArrayMessageReader message(buffer);
-    const auto module = message.getRoot<jeff::Module>();
-    return module.toString().flatten().cStr();
+    const auto jeffModule = message.getRoot<jeff::Module>();
+    return jeffModule.toString().flatten().cStr();
 }
 
-mlir::LogicalResult convertJeffToNative(mlir::ModuleOp module) {
-    mlir::PassManager pm(module.getContext());
+mlir::LogicalResult convertJeffToNative(mlir::ModuleOp moduleOp) {
+    mlir::PassManager pm(moduleOp.getContext());
     pm.addPass(mlir::createJeffToNative());
-    return pm.run(module);
+    return pm.run(moduleOp);
 }
 
-mlir::LogicalResult convertNativeToJeff(mlir::ModuleOp module) {
-    mlir::PassManager pm(module.getContext());
+mlir::LogicalResult convertNativeToJeff(mlir::ModuleOp moduleOp) {
+    mlir::PassManager pm(moduleOp.getContext());
     pm.addPass(mlir::createNativeToJeff());
-    return pm.run(module);
+    return pm.run(moduleOp);
 }
 
-mlir::LogicalResult canonicalize(mlir::ModuleOp module) {
-    mlir::PassManager pm(module.getContext());
+mlir::LogicalResult canonicalize(mlir::ModuleOp moduleOp) {
+    mlir::PassManager pm(moduleOp.getContext());
     pm.addPass(mlir::createCanonicalizerPass());
-    return pm.run(module);
+    return pm.run(moduleOp);
 }
 
 std::vector<NativeRoundTripTestCase> getTestCases() {

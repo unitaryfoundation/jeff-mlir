@@ -9,7 +9,7 @@
 /**
  * @brief Deserialize an existing jeff message into an MLIR module.
  * @param context The MLIR context to use for the deserialization.
- * @param module The reader to import.
+ * @param jeffModule The reader to import.
  * @return An owning reference to the deserialized MLIR module, or null after an import error has
  * been diagnosed. Deserializer and Cap'n Proto errors do not escape this boundary as exceptions.
  *
@@ -18,7 +18,7 @@
  * returns. The imported module does not retain views into that storage.
  */
 mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
-                                              jeff::Module::Reader module);
+                                              jeff::Module::Reader jeffModule);
 
 /**
  * @brief Deserialize a memory buffer containing a jeff module into an MLIR module.
