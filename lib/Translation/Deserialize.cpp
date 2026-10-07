@@ -1651,13 +1651,11 @@ mlir::OwningOpRef<mlir::ModuleOp> deserializeModule(mlir::MLIRContext* context,
     return ownedModule;
 }
 
-mlir::OwningOpRef<mlir::ModuleOp> deserializeBuffer(mlir::MLIRContext* context,
-                                                    kj::ArrayPtr<const capnp::word> buffer) {
+template <typename Decode>
+mlir::OwningOpRef<mlir::ModuleOp> deserializeWithDiagnostics(mlir::MLIRContext* context,
+                                                             Decode decode) {
     mlir::OwningOpRef<mlir::ModuleOp> result;
-    auto exception = kj::runCatchingExceptions([&] {
-        capnp::FlatArrayMessageReader message(buffer);
-        result = deserializeModule(context, message.getRoot<jeff::Module>());
-    });
+    auto exception = kj::runCatchingExceptions([&] { result = decode(); });
     KJ_IF_MAYBE (error, exception) {
         mlir::emitError(mlir::UnknownLoc::get(context))
             << "Failed to deserialize jeff: " << error->getDescription().cStr();
@@ -1666,7 +1664,20 @@ mlir::OwningOpRef<mlir::ModuleOp> deserializeBuffer(mlir::MLIRContext* context,
     return result;
 }
 
+mlir::OwningOpRef<mlir::ModuleOp> deserializeBuffer(mlir::MLIRContext* context,
+                                                    kj::ArrayPtr<const capnp::word> buffer) {
+    return deserializeWithDiagnostics(context, [&] {
+        capnp::FlatArrayMessageReader message(buffer);
+        return deserializeModule(context, message.getRoot<jeff::Module>());
+    });
+}
+
 } // namespace
+
+mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
+                                              jeff::Module::Reader module) {
+    return deserializeWithDiagnostics(context, [&] { return deserializeModule(context, module); });
+}
 
 mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
                                               kj::ArrayPtr<capnp::word> buffer) {

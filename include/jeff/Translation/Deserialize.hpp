@@ -1,12 +1,27 @@
 #pragma once
 
 #include <capnp/common.h>
+#include <jeff.capnp.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/OwningOpRef.h>
 
 /**
- * @brief Deserialize a memory buffer containing a serialized .jeff module into an MLIR module.
+ * @brief Deserialize an existing jeff message into an MLIR module.
+ * @param context The MLIR context to use for the deserialization.
+ * @param module The reader to import.
+ * @return An owning reference to the deserialized MLIR module, or null after an import error has
+ * been diagnosed. Deserializer and Cap'n Proto errors do not escape this boundary as exceptions.
+ *
+ * @details
+ * The caller must keep the reader's backing storage alive and unchanged until this function
+ * returns. The imported module does not retain views into that storage.
+ */
+mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
+                                              jeff::Module::Reader module);
+
+/**
+ * @brief Deserialize a memory buffer containing a jeff module into an MLIR module.
  * @param context The MLIR context to use for the deserialization.
  * @param buffer A memory buffer containing the serialized jeff module.
  * @return An owning reference to the deserialized MLIR module, or null after an import error has
