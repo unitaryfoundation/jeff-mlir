@@ -63,14 +63,14 @@ std::string readJeffFileToText(llvm::StringRef path) {
     capnp::readMessageCopyFromFd(autoCloseFd, message);
 #endif
 
-    const auto module = message.getRoot<jeff::Module>();
-    return module.toString().flatten().cStr();
+    const auto jeffModule = message.getRoot<jeff::Module>();
+    return jeffModule.toString().flatten().cStr();
 }
 
 std::string moduleTextFromBuffer(const kj::ArrayPtr<capnp::word>& buffer) {
     capnp::FlatArrayMessageReader message(buffer);
-    const auto module = message.getRoot<jeff::Module>();
-    return module.toString().flatten().cStr();
+    const auto jeffModule = message.getRoot<jeff::Module>();
+    return jeffModule.toString().flatten().cStr();
 }
 
 std::vector<RoundTripTestCase> getTestCases() {

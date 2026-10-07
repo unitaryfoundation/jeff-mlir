@@ -458,7 +458,7 @@ struct JeffToNative final : impl::JeffToNativeBase<JeffToNative> {
   protected:
     void runOnOperation() override {
         MLIRContext* context = &getContext();
-        auto* module = getOperation();
+        auto* moduleOp = getOperation();
 
         ConversionTarget target(*context);
         target.addLegalDialect<arith::ArithDialect, math::MathDialect, tensor::TensorDialect>();
@@ -485,7 +485,7 @@ struct JeffToNative final : impl::JeffToNativeBase<JeffToNative> {
 
         RewritePatternSet patterns(context);
         jeff::populateJeffToNativeConversionPatterns(patterns);
-        if (applyPartialConversion(module, target, std::move(patterns)).failed()) {
+        if (applyPartialConversion(moduleOp, target, std::move(patterns)).failed()) {
             signalPassFailure();
         }
     }

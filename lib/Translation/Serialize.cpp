@@ -1561,13 +1561,13 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
 
 } // namespace
 
-void serialize(mlir::ModuleOp module, capnp::MessageBuilder& message) {
+void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
     SerializationContext ctx;
 
     auto moduleBuilder = message.initRoot<jeff::Module>();
 
     // Get strings
-    auto stringsAttr = llvm::cast<mlir::ArrayAttr>(module->getAttr("jeff.strings"));
+    auto stringsAttr = llvm::cast<mlir::ArrayAttr>(moduleOp->getAttr("jeff.strings"));
     const auto numStrings = stringsAttr.size();
     auto stringsBuilder = moduleBuilder.initStrings(numStrings);
     for (int32_t i = 0; i < numStrings; ++i) {
@@ -1579,7 +1579,7 @@ void serialize(mlir::ModuleOp module, capnp::MessageBuilder& message) {
     // Build functions
     uint16_t id = 0;
     llvm::SmallVector<mlir::func::FuncOp> functions;
-    for (auto func : module.getOps<mlir::func::FuncOp>()) {
+    for (auto func : moduleOp.getOps<mlir::func::FuncOp>()) {
         ctx.funcs[func.getSymName()] = id++;
         functions.push_back(func);
     }
@@ -1596,33 +1596,33 @@ void serialize(mlir::ModuleOp module, capnp::MessageBuilder& message) {
 
     // Set metadata
     moduleBuilder.setEntrypoint(
-        llvm::cast<mlir::IntegerAttr>(module->getAttr("jeff.entrypoint")).getUInt());
+        llvm::cast<mlir::IntegerAttr>(moduleOp->getAttr("jeff.entrypoint")).getUInt());
 
     moduleBuilder.setTool(
-        llvm::cast<mlir::StringAttr>(module->getAttr("jeff.tool")).getValue().str());
+        llvm::cast<mlir::StringAttr>(moduleOp->getAttr("jeff.tool")).getValue().str());
 
     moduleBuilder.setToolVersion(
-        llvm::cast<mlir::StringAttr>(module->getAttr("jeff.toolVersion")).getValue().str());
+        llvm::cast<mlir::StringAttr>(moduleOp->getAttr("jeff.toolVersion")).getValue().str());
 
     moduleBuilder.setVersion(
-        llvm::cast<mlir::IntegerAttr>(module->getAttr("jeff.version")).getUInt());
+        llvm::cast<mlir::IntegerAttr>(moduleOp->getAttr("jeff.version")).getUInt());
 
     moduleBuilder.setVersionMinor(
-        llvm::cast<mlir::IntegerAttr>(module->getAttr("jeff.versionMinor")).getUInt());
+        llvm::cast<mlir::IntegerAttr>(moduleOp->getAttr("jeff.versionMinor")).getUInt());
 
     moduleBuilder.setVersionPatch(
-        llvm::cast<mlir::IntegerAttr>(module->getAttr("jeff.versionPatch")).getUInt());
+        llvm::cast<mlir::IntegerAttr>(moduleOp->getAttr("jeff.versionPatch")).getUInt());
 }
 
-kj::Array<capnp::word> serialize(mlir::ModuleOp module) {
+kj::Array<capnp::word> serialize(mlir::ModuleOp moduleOp) {
     capnp::MallocMessageBuilder message;
-    serialize(module, message);
+    serialize(moduleOp, message);
     return capnp::messageToFlatArray(message);
 }
 
-mlir::LogicalResult serializeToFile(mlir::ModuleOp module, llvm::StringRef path) {
+mlir::LogicalResult serializeToFile(mlir::ModuleOp moduleOp, llvm::StringRef path) {
     capnp::MallocMessageBuilder message;
-    serialize(module, message);
+    serialize(moduleOp, message);
 
     auto file = llvm::sys::fs::openNativeFileForWrite(path, llvm::sys::fs::CD_CreateAlways,
                                                       llvm::sys::fs::OF_None);

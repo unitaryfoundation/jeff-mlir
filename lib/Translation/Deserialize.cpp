@@ -1675,8 +1675,9 @@ mlir::OwningOpRef<mlir::ModuleOp> deserializeBuffer(mlir::MLIRContext* context,
 } // namespace
 
 mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
-                                              jeff::Module::Reader module) {
-    return deserializeWithDiagnostics(context, [&] { return deserializeModule(context, module); });
+                                              jeff::Module::Reader jeffModule) {
+    return deserializeWithDiagnostics(context,
+                                      [&] { return deserializeModule(context, jeffModule); });
 }
 
 mlir::OwningOpRef<mlir::ModuleOp> deserialize(mlir::MLIRContext* context,
