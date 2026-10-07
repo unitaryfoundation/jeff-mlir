@@ -4,6 +4,8 @@
 #include "jeff/IR/JeffInterfaces.h"
 #include "jeff/IR/JeffOps.h"
 
+#include <capnp/any.h>
+#include <capnp/blob.h>
 #include <capnp/common.h>
 #include <capnp/list.h>
 #include <capnp/message.h>
@@ -12,6 +14,7 @@
 #include <kj/array.h>
 #include <kj/io.h>
 #include <llvm/ADT/DenseMap.h>
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringMap.h>
 #include <llvm/ADT/StringRef.h>
@@ -1557,6 +1560,22 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
         auto typeBuilder = valueBuilder.initType();
         serializeType(typeBuilder, values[v].getType());
     }
+
+    // Serialize input names
+    for (unsigned arg = 0; arg < numSources; ++arg) {
+        auto attr = func.getArgAttr(arg, "jeff.input_name");
+        if (!attr) {
+            continue;
+        }
+        auto name = llvm::dyn_cast<mlir::StringAttr>(attr);
+        if (!name) {
+            llvm::report_fatal_error("jeff.input_name must be a string");
+        }
+        auto metadata =
+            valuesBuilder[ctx.getValueId(entryBlock.getArgument(arg))].initMetadata(1)[0];
+        metadata.setName(ctx.getStringId("jeff.input_name"));
+        metadata.getValue().setAs<capnp::Text>(name.getValue().str());
+    }
 }
 
 void writeMessage(mlir::ModuleOp module, capnp::MallocMessageBuilder& message) {
@@ -1566,12 +1585,26 @@ void writeMessage(mlir::ModuleOp module, capnp::MallocMessageBuilder& message) {
 
     // Get strings
     auto stringsAttr = llvm::cast<mlir::ArrayAttr>(module->getAttr("jeff.strings"));
-    const auto numStrings = stringsAttr.size();
+    llvm::SmallVector<llvm::StringRef> strings;
+    for (auto attr : stringsAttr) {
+        strings.push_back(llvm::cast<mlir::StringAttr>(attr).getValue());
+    }
+    for (auto func : module.getOps<mlir::func::FuncOp>()) {
+        auto argAttrs = func.getAllArgAttrs();
+        if (argAttrs && llvm::any_of(argAttrs, [](auto attr) {
+                return llvm::cast<mlir::DictionaryAttr>(attr).contains("jeff.input_name");
+            })) {
+            if (!llvm::is_contained(strings, "jeff.input_name")) {
+                strings.push_back("jeff.input_name");
+            }
+            break;
+        }
+    }
+    const auto numStrings = strings.size();
     auto stringsBuilder = moduleBuilder.initStrings(numStrings);
-    for (int32_t i = 0; i < numStrings; ++i) {
-        const auto str = llvm::cast<mlir::StringAttr>(stringsAttr[i]).getValue().str();
-        ctx.strings[str] = i;
-        stringsBuilder.set(i, str);
+    for (auto [i, str] : llvm::enumerate(strings)) {
+        ctx.strings[str] = static_cast<uint16_t>(i);
+        stringsBuilder.set(i, str.str());
     }
 
     // Build functions

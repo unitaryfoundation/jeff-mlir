@@ -3,6 +3,8 @@
 #include "jeff/IR/JeffDialect.h"
 #include "jeff/IR/JeffOps.h"
 
+#include <capnp/any.h>
+#include <capnp/blob.h>
 #include <capnp/common.h>
 #include <capnp/list.h>
 #include <capnp/serialize.h>
@@ -1561,7 +1563,20 @@ void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
     builder.setInsertionPointToStart(&entryBlock);
 
     for (auto i = 0; i < sources.size(); ++i) {
-        ctx.setValue(sources[i], entryBlock.getArgument(i));
+        const auto source = sources[i];
+        ctx.setValue(source, entryBlock.getArgument(i));
+        for (auto metadata : ctx.jeffValues[source].getMetadata()) {
+            KJ_REQUIRE(metadata.getName() < ctx.strings.size(),
+                       "Input metadata name index out of bounds") {}
+            if (ctx.strings[metadata.getName()] != "jeff.input_name") {
+                continue;
+            }
+            KJ_REQUIRE(!func.getArgAttr(i, "jeff.input_name"), "Duplicate input name metadata") {}
+            KJ_REQUIRE(metadata.hasValue(), "Missing input name metadata value") {}
+            auto name = metadata.getValue().getAs<capnp::Text>();
+            func.setArgAttr(i, "jeff.input_name",
+                            builder.getStringAttr(llvm::StringRef(name.begin(), name.size())));
+        }
     }
 
     deserializeOperations(builder, operations, ctx);
@@ -1593,7 +1608,7 @@ mlir::OwningOpRef<mlir::ModuleOp> deserializeModule(mlir::MLIRContext* context,
     auto strings = jeffModule.getStrings();
     ctx.strings.reserve(strings.size());
     for (auto string : strings) {
-        ctx.strings.push_back(std::string(string.cStr()));
+        ctx.strings.emplace_back(string.begin(), string.size());
     }
 
     // Get functions
