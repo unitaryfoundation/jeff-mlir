@@ -1559,7 +1559,9 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
     }
 }
 
-void writeMessage(mlir::ModuleOp module, capnp::MallocMessageBuilder& message) {
+} // namespace
+
+void serialize(mlir::ModuleOp module, capnp::MessageBuilder& message) {
     SerializationContext ctx;
 
     auto moduleBuilder = message.initRoot<jeff::Module>();
@@ -1612,17 +1614,15 @@ void writeMessage(mlir::ModuleOp module, capnp::MallocMessageBuilder& message) {
         llvm::cast<mlir::IntegerAttr>(module->getAttr("jeff.versionPatch")).getUInt());
 }
 
-} // namespace
-
 kj::Array<capnp::word> serialize(mlir::ModuleOp module) {
     capnp::MallocMessageBuilder message;
-    writeMessage(module, message);
+    serialize(module, message);
     return capnp::messageToFlatArray(message);
 }
 
 mlir::LogicalResult serializeToFile(mlir::ModuleOp module, llvm::StringRef path) {
     capnp::MallocMessageBuilder message;
-    writeMessage(module, message);
+    serialize(module, message);
 
     auto file = llvm::sys::fs::openNativeFileForWrite(path, llvm::sys::fs::CD_CreateAlways,
                                                       llvm::sys::fs::OF_None);

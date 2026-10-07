@@ -1,9 +1,26 @@
 #pragma once
 
 #include <capnp/common.h>
+#include <capnp/message.h>
 #include <kj/array.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/Support/LLVM.h>
+
+/**
+ * @brief Serialize an MLIR module containing a jeff program into a fresh Cap'n Proto message
+ * @param module The MLIR module to serialize.
+ * @param message The fresh message to encode into.
+ *
+ * @details
+ * The caller owns the message and its segments. Keep the message alive and unchanged while reading
+ * its root or the views returned by `getSegmentsForOutput()`. Discard the message if encoding
+ * fails.
+ *
+ * Known limitations:
+ *
+ * - Only one-dimensional tensors with dynamic size are supported.
+ */
+void serialize(mlir::ModuleOp module, capnp::MessageBuilder& message);
 
 /**
  * @brief Serialize an MLIR module containing a jeff program into a memory buffer.
