@@ -6,7 +6,10 @@ if(NOT TARGET ${test_name})
         return()
     endif()
 
-    add_executable(${test_name} test_deserialization.cpp test_round_trip.cpp test_serialization.cpp)
+    add_executable(
+        ${test_name} test_deserialization.cpp test_metadata.cpp test_round_trip.cpp
+                     test_serialization.cpp
+    )
 
     add_dependencies(${test_name} generate_test_cases)
 

@@ -2,9 +2,8 @@
 
 #include "jeff/IR/JeffDialect.h"
 #include "jeff/IR/JeffOps.h"
+#include "jeff/Translation/Metadata.hpp"
 
-#include <capnp/any.h>
-#include <capnp/blob.h>
 #include <capnp/common.h>
 #include <capnp/list.h>
 #include <capnp/serialize.h>
@@ -35,6 +34,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <string>
 #include <string_view>
 
@@ -60,7 +60,11 @@ struct DeserializationContext {
             llvm::errs() << "Value " << id << " already exists\n";
             KJ_FAIL_REQUIRE("Value already exists") {}
         }
+        KJ_REQUIRE(id < jeffValues.size(), "Value index out of bounds") {}
         values[id] = value;
+        mlir::jeff::setMetadata(value, mlir::jeff::deserializeMetadata(value.getContext(),
+                                                                       jeffValues[id].getMetadata(),
+                                                                       strings));
     }
 
     mlir::func::FuncOp getFunc(uint16_t id) {
@@ -1197,10 +1201,16 @@ void deserializeBlock(mlir::ImplicitLocOpBuilder& builder, mlir::Block& block,
     mlir::OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToStart(&block);
 
+    mlir::jeff::setMetadata(
+        *block.getParent(),
+        mlir::jeff::deserializeMetadata(builder.getContext(), region.getMetadata(), ctx.strings));
+
     // Add sources to map
+    for (auto type : argTypes) {
+        block.addArgument(type, builder.getUnknownLoc());
+    }
     for (size_t i = 0; i < region.getSources().size(); ++i) {
-        auto arg = block.addArgument(argTypes[i], builder.getUnknownLoc());
-        ctx.setValue(region.getSources()[i], arg);
+        ctx.setValue(region.getSources()[i], block.getArgument(i));
     }
 
     deserializeOperations(builder, region.getOperations(), ctx);
@@ -1497,6 +1507,10 @@ auto deserializeOperations(mlir::ImplicitLocOpBuilder& builder,
             llvm::errs() << "Cannot deserialize instruction " << instruction.which() << "\n";
             KJ_FAIL_REQUIRE("Unknown instruction") {}
         }
+        auto& created = *std::prev(builder.getInsertionPoint());
+        mlir::jeff::setMetadata(&created, mlir::jeff::deserializeMetadata(builder.getContext(),
+                                                                          operation.getMetadata(),
+                                                                          ctx.strings));
     }
 }
 
@@ -1541,6 +1555,8 @@ void deserializeFunctionSignature(mlir::ImplicitLocOpBuilder& builder,
     const auto funcName = ctx.strings[function.getName()];
     auto funcType = builder.getFunctionType(sourceTypes, targetTypes);
     auto func = mlir::func::FuncOp::create(builder, funcName, funcType);
+    mlir::jeff::setMetadata(func, mlir::jeff::deserializeMetadata(
+                                      builder.getContext(), function.getMetadata(), ctx.strings));
     ctx.setFunc(functionId, func);
 }
 
@@ -1565,20 +1581,11 @@ void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
     for (auto i = 0; i < sources.size(); ++i) {
         const auto source = sources[i];
         ctx.setValue(source, entryBlock.getArgument(i));
-        for (auto metadata : ctx.jeffValues[source].getMetadata()) {
-            KJ_REQUIRE(metadata.getName() < ctx.strings.size(),
-                       "Input metadata name index out of bounds") {}
-            if (ctx.strings[metadata.getName()] != "jeff.input_name") {
-                continue;
-            }
-            KJ_REQUIRE(!func.getArgAttr(i, "jeff.input_name"), "Duplicate input name metadata") {}
-            KJ_REQUIRE(metadata.hasValue(), "Missing input name metadata value") {}
-            auto name = metadata.getValue().getAs<capnp::Text>();
-            func.setArgAttr(i, "jeff.input_name",
-                            builder.getStringAttr(llvm::StringRef(name.begin(), name.size())));
-        }
     }
 
+    mlir::jeff::setMetadata(
+        func.getBody(),
+        mlir::jeff::deserializeMetadata(builder.getContext(), body.getMetadata(), ctx.strings));
     deserializeOperations(builder, operations, ctx);
 
     llvm::SmallVector<mlir::Value> results;
@@ -1630,6 +1637,9 @@ mlir::OwningOpRef<mlir::ModuleOp> deserializeModule(mlir::MLIRContext* context,
     }
 
     // Set metadata
+    mlir::jeff::setMetadata(mlirModule,
+                            mlir::jeff::deserializeMetadata(builder.getContext(),
+                                                            jeffModule.getMetadata(), ctx.strings));
     auto uint16Type = builder.getIntegerType(16, false);
 
     const auto entryPoint = jeffModule.getEntrypoint();

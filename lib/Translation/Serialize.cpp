@@ -3,15 +3,17 @@
 #include "jeff/IR/JeffDialect.h"
 #include "jeff/IR/JeffInterfaces.h"
 #include "jeff/IR/JeffOps.h"
+#include "jeff/Translation/Metadata.hpp"
 
-#include <capnp/any.h>
-#include <capnp/blob.h>
 #include <capnp/common.h>
 #include <capnp/list.h>
 #include <capnp/message.h>
 #include <capnp/serialize.h>
 #include <jeff.capnp.h>
 #include <kj/array.h>
+#include <kj/common.h>
+#include <kj/debug.h>
+#include <kj/exception.h>
 #include <kj/io.h>
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/STLExtras.h>
@@ -29,6 +31,8 @@
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/BuiltinTypeInterfaces.h>
 #include <mlir/IR/BuiltinTypes.h>
+#include <mlir/IR/Diagnostics.h>
+#include <mlir/IR/OpDefinition.h>
 #include <mlir/IR/Types.h>
 #include <mlir/IR/Value.h>
 #include <mlir/Support/LLVM.h>
@@ -1291,6 +1295,10 @@ void serializeOperation(jeff::Op::Builder builder, mlir::Operation* operation,
 
 void serializeRegion(jeff::Region::Builder builder, mlir::Region& region,
                      SerializationContext& ctx) {
+    auto metadata = mlir::jeff::getMetadata(region);
+    if (metadata) {
+        mlir::jeff::serializeMetadata(metadata, builder.initMetadata(metadata.size()), ctx.strings);
+    }
     const auto numSources = region.getNumArguments();
     auto sources = builder.initSources(numSources);
     for (size_t i = 0; i < numSources; ++i) {
@@ -1495,6 +1503,10 @@ void serializeType(jeff::Type::Builder builder, mlir::Type type) {
 
 void serializeOperation(jeff::Op::Builder builder, mlir::Operation* operation,
                         SerializationContext& ctx) {
+    auto metadata = mlir::jeff::getMetadata(operation);
+    if (metadata) {
+        mlir::jeff::serializeMetadata(metadata, builder.initMetadata(metadata.size()), ctx.strings);
+    }
     llvm::TypeSwitch<mlir::Operation*, void>(operation)
         .Case<mlir::jeff::QubitOperation>([&](auto op) { serializeQubit(builder, op, ctx); })
         .Case<mlir::jeff::QuregOperation>([&](auto op) { serializeQureg(builder, op, ctx); })
@@ -1515,11 +1527,21 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
                        SerializationContext& ctx) {
     ctx.values.clear();
 
+    auto metadata = mlir::jeff::getMetadata(func);
+    if (metadata) {
+        mlir::jeff::serializeMetadata(metadata, functionBuilder.initMetadata(metadata.size()),
+                                      ctx.strings);
+    }
     auto defBuilder = functionBuilder.initDefinition();
     auto& entryBlock = func.getRegion().front();
 
     // Build body
     auto bodyBuilder = defBuilder.initBody();
+    auto bodyMetadata = mlir::jeff::getMetadata(func.getBody());
+    if (bodyMetadata) {
+        mlir::jeff::serializeMetadata(bodyMetadata, bodyBuilder.initMetadata(bodyMetadata.size()),
+                                      ctx.strings);
+    }
 
     // Set sources
     const auto numSources = entryBlock.getNumArguments();
@@ -1559,22 +1581,11 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
         auto valueBuilder = valuesBuilder[v];
         auto typeBuilder = valueBuilder.initType();
         serializeType(typeBuilder, values[v].getType());
-    }
-
-    // Serialize input names
-    for (unsigned arg = 0; arg < numSources; ++arg) {
-        auto attr = func.getArgAttr(arg, "jeff.input_name");
-        if (!attr) {
-            continue;
+        auto valueMetadata = mlir::jeff::getMetadata(values[v]);
+        if (valueMetadata) {
+            mlir::jeff::serializeMetadata(
+                valueMetadata, valueBuilder.initMetadata(valueMetadata.size()), ctx.strings);
         }
-        auto name = llvm::dyn_cast<mlir::StringAttr>(attr);
-        if (!name) {
-            llvm::report_fatal_error("jeff.input_name must be a string");
-        }
-        auto metadata =
-            valuesBuilder[ctx.getValueId(entryBlock.getArgument(arg))].initMetadata(1)[0];
-        metadata.setName(ctx.getStringId("jeff.input_name"));
-        metadata.getValue().setAs<capnp::Text>(name.getValue().str());
     }
 }
 
@@ -1589,17 +1600,40 @@ void writeMessage(mlir::ModuleOp module, capnp::MallocMessageBuilder& message) {
     for (auto attr : stringsAttr) {
         strings.push_back(llvm::cast<mlir::StringAttr>(attr).getValue());
     }
-    for (auto func : module.getOps<mlir::func::FuncOp>()) {
-        auto argAttrs = func.getAllArgAttrs();
-        if (argAttrs && llvm::any_of(argAttrs, [](auto attr) {
-                return llvm::cast<mlir::DictionaryAttr>(attr).contains("jeff.input_name");
-            })) {
-            if (!llvm::is_contained(strings, "jeff.input_name")) {
-                strings.push_back("jeff.input_name");
-            }
-            break;
+    auto collectNames = [&](mlir::ArrayAttr metadata) {
+        if (!metadata) {
+            return;
         }
-    }
+        for (auto entry : metadata) {
+            auto name =
+                llvm::cast<mlir::DictionaryAttr>(entry).getAs<mlir::StringAttr>("name").getValue();
+            if (!llvm::is_contained(strings, name)) {
+                strings.push_back(name);
+            }
+        }
+    };
+    module.walk([&](mlir::Operation* operation) {
+        auto metadata = mlir::jeff::getMetadata(operation);
+        KJ_REQUIRE(!operation->hasTrait<mlir::OpTrait::IsTerminator>() || !metadata ||
+                       metadata.empty(),
+                   "Terminator metadata has no jeff operation") {}
+        collectNames(metadata);
+        for (auto result : operation->getResults()) {
+            collectNames(mlir::jeff::getMetadata(result));
+        }
+        for (auto& region : operation->getRegions()) {
+            auto regionMetadata = mlir::jeff::getMetadata(region);
+            KJ_REQUIRE(!llvm::isa<mlir::ModuleOp>(operation) || !regionMetadata ||
+                           regionMetadata.empty(),
+                       "Module body metadata has no jeff region") {}
+            collectNames(regionMetadata);
+            for (auto& block : region) {
+                for (auto argument : block.getArguments()) {
+                    collectNames(mlir::jeff::getMetadata(argument));
+                }
+            }
+        }
+    });
     const auto numStrings = strings.size();
     auto stringsBuilder = moduleBuilder.initStrings(numStrings);
     for (auto [i, str] : llvm::enumerate(strings)) {
@@ -1626,6 +1660,11 @@ void writeMessage(mlir::ModuleOp module, capnp::MallocMessageBuilder& message) {
     }
 
     // Set metadata
+    auto metadata = mlir::jeff::getMetadata(module);
+    if (metadata) {
+        mlir::jeff::serializeMetadata(metadata, moduleBuilder.initMetadata(metadata.size()),
+                                      ctx.strings);
+    }
     moduleBuilder.setEntrypoint(
         llvm::cast<mlir::IntegerAttr>(module->getAttr("jeff.entrypoint")).getUInt());
 
@@ -1645,17 +1684,31 @@ void writeMessage(mlir::ModuleOp module, capnp::MallocMessageBuilder& message) {
         llvm::cast<mlir::IntegerAttr>(module->getAttr("jeff.versionPatch")).getUInt());
 }
 
+mlir::LogicalResult writeMessageChecked(mlir::ModuleOp module,
+                                        capnp::MallocMessageBuilder& message) {
+    auto exception = kj::runCatchingExceptions([&] { writeMessage(module, message); });
+    KJ_IF_MAYBE (error, exception) {
+        module.emitError() << "Failed to serialize jeff: " << error->getDescription().cStr();
+        return mlir::failure();
+    }
+    return mlir::success();
+}
+
 } // namespace
 
 kj::Array<capnp::word> serialize(mlir::ModuleOp module) {
     capnp::MallocMessageBuilder message;
-    writeMessage(module, message);
+    if (mlir::failed(writeMessageChecked(module, message))) {
+        return {};
+    }
     return capnp::messageToFlatArray(message);
 }
 
 mlir::LogicalResult serializeToFile(mlir::ModuleOp module, llvm::StringRef path) {
     capnp::MallocMessageBuilder message;
-    writeMessage(module, message);
+    if (mlir::failed(writeMessageChecked(module, message))) {
+        return mlir::failure();
+    }
 
     auto file = llvm::sys::fs::openNativeFileForWrite(path, llvm::sys::fs::CD_CreateAlways,
                                                       llvm::sys::fs::OF_None);

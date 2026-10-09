@@ -7,10 +7,12 @@ The project adheres to
 
 ## [Unreleased]
 
-### Preserve function input names
+### Preserve arbitrary metadata
 
-Tools can now identify function inputs by their source-level names after
-serializing and deserializing programs through `jeff` using existing metadata.
+Tools can now exchange their own metadata through `jeff` without losing unknown
+keys or payloads during serialization and deserialization. Metadata is preserved
+on modules, functions, regions, operations, and values using the existing
+format.
 
 ## [0.4.0] - 2026-09-11
 

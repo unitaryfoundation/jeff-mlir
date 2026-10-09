@@ -13,7 +13,6 @@
 #include <jeff.capnp.h>
 #include <kj/common.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
-#include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Diagnostics.h>
 #include <mlir/IR/MLIRContext.h>
@@ -22,7 +21,6 @@
 #include <mlir/Support/LLVM.h>
 
 #include <array>
-#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <ios>
@@ -74,11 +72,11 @@ class DeserializeErrorTest : public ::testing::Test {
     }
 };
 
-jeff::Value::Builder initNamedInputModule(capnp::MallocMessageBuilder& message) {
+jeff::Value::Builder initInputMetadataModule(capnp::MallocMessageBuilder& message) {
     auto module = message.initRoot<jeff::Module>();
     auto strings = module.initStrings(2);
     strings.set(0, "main");
-    strings.set(1, "jeff.input_name");
+    strings.set(1, "vendor.input");
     auto definition = module.initFunctions(1)[0].initDefinition();
     auto value = definition.initValues(1)[0];
     value.initType().setFloat(jeff::FloatPrecision::FLOAT64);
@@ -178,72 +176,11 @@ TEST_F(DeserializeErrorTest, RejectsDuplicateFunctions) {
     checkRejected(duplicateFunctions, "Verification of MLIR module failed");
 }
 
-TEST_F(DeserializeErrorTest, RejectsOutOfBoundsInputMetadataNames) {
+TEST_F(DeserializeErrorTest, RejectsOutOfBoundsMetadataNames) {
     capnp::MallocMessageBuilder message;
-    auto value = initNamedInputModule(message);
+    auto value = initInputMetadataModule(message);
     value.getMetadata()[0].setName(2);
-    checkRejected(message, "Input metadata name index out of bounds");
-}
-
-TEST_F(DeserializeErrorTest, RejectsMissingInputNames) {
-    capnp::MallocMessageBuilder message;
-    auto value = initNamedInputModule(message);
-    value.getMetadata()[0].getValue().clear();
-    checkRejected(message, "Missing input name metadata value");
-}
-
-TEST_F(DeserializeErrorTest, RejectsNonTextInputNames) {
-    capnp::MallocMessageBuilder message;
-    auto value = initNamedInputModule(message);
-    value.getMetadata()[0].getValue().initAs<capnp::List<uint32_t>>(1);
-    checkRejected(message, "Failed to deserialize jeff");
-}
-
-TEST_F(DeserializeErrorTest, RejectsDuplicateInputNames) {
-    capnp::MallocMessageBuilder message;
-    auto value = initNamedInputModule(message);
-    for (auto duplicate : value.initMetadata(2)) {
-        duplicate.setName(1);
-        duplicate.getValue().setAs<capnp::Text>("theta");
-    }
-    checkRejected(message, "Duplicate input name metadata");
-}
-
-TEST(DeserializeTest, ReadsInputNamesBySourceIndex) {
-    mlir::MLIRContext context;
-    context.loadDialect<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
-
-    capnp::MallocMessageBuilder message;
-    auto module = message.initRoot<jeff::Module>();
-    auto strings = module.initStrings(3);
-    strings.set(0, "main");
-    strings.set(1, "jeff.input_name");
-    strings.set(2, std::string("jeff.input_name") + '\0' + "ignored");
-    auto definition = module.initFunctions(1)[0].initDefinition();
-    auto values = definition.initValues(3);
-    for (auto value : values) {
-        value.initType().setFloat(jeff::FloatPrecision::FLOAT64);
-    }
-    auto metadata = values[0].initMetadata(2);
-    metadata[0].setName(2);
-    metadata[0].getValue().initAs<capnp::List<uint32_t>>(1);
-    metadata[1].setName(1);
-    metadata[1].getValue().setAs<capnp::Text>("theta");
-    auto body = definition.initBody();
-    auto sources = body.initSources(3);
-    sources.set(0, 2);
-    sources.set(1, 0);
-    sources.set(2, 1);
-    body.initTargets(0);
-    body.initOperations(0);
-
-    auto words = capnp::messageToFlatArray(message);
-    auto decoded = deserialize(&context, words);
-    ASSERT_TRUE(decoded);
-    auto func = *decoded->getOps<mlir::func::FuncOp>().begin();
-    EXPECT_FALSE(func.getArgAttr(0, "jeff.input_name"));
-    EXPECT_EQ(func.getArgAttr(1, "jeff.input_name"), mlir::StringAttr::get(&context, "theta"));
-    EXPECT_FALSE(func.getArgAttr(2, "jeff.input_name"));
+    checkRejected(message, "Metadata name index out of bounds");
 }
 
 TEST(DeserializeTest, IndependentControlFlowTuples) {
