@@ -16,6 +16,7 @@
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Diagnostics.h>
 #include <mlir/IR/MLIRContext.h>
+#include <mlir/IR/OwningOpRef.h>
 #include <mlir/IR/Verifier.h>
 #include <mlir/Parser/Parser.h>
 #include <mlir/Support/LLVM.h>
@@ -50,6 +51,10 @@ class DeserializeErrorTest : public ::testing::Test {
     void TearDown() override { fs::remove(input); }
 
     void checkRejected(capnp::MallocMessageBuilder& message, const char* expected) {
+        diagnostic.clear();
+        EXPECT_FALSE(deserialize(&context, message.getRoot<jeff::Module>().asReader()));
+        EXPECT_NE(diagnostic.find(expected), std::string::npos) << diagnostic;
+
         auto words = capnp::messageToFlatArray(message);
         diagnostic.clear();
         EXPECT_FALSE(deserialize(&context, words));
@@ -229,5 +234,34 @@ TEST(DeserializeTest, IndependentControlFlowTuples) {
         auto reserialized = serialize(*decoded);
         EXPECT_EQ(jeff::test::moduleTextFromBuffer(bytes),
                   jeff::test::moduleTextFromBuffer(reserialized));
+    }
+}
+
+TEST(MessageExchangeTest, OwnsImportedIR) {
+    mlir::MLIRContext context;
+    context.loadDialect<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
+    const auto input = fs::path(TEST_INPUTS_DIR) / "bell_pair.jeff";
+    auto original = deserializeFromFile(&context, input.string());
+    ASSERT_TRUE(original);
+    const auto expected = jeff::test::readJeffFileToText(input.string());
+
+    for (const auto segmented : {false, true}) {
+        SCOPED_TRACE(segmented);
+        mlir::OwningOpRef<mlir::ModuleOp> imported;
+        {
+            capnp::MallocMessageBuilder message(1, capnp::AllocationStrategy::FIXED_SIZE);
+            serialize(*original, message);
+            ASSERT_GT(message.getSegmentsForOutput().size(), 1U);
+            if (segmented) {
+                capnp::SegmentArrayMessageReader reader(message.getSegmentsForOutput());
+                imported = deserialize(&context, reader.getRoot<jeff::Module>());
+            } else {
+                imported = deserialize(&context, message.getRoot<jeff::Module>().asReader());
+            }
+        }
+        ASSERT_TRUE(imported);
+        EXPECT_TRUE(mlir::succeeded(mlir::verify(*imported)));
+        auto serialized = serialize(*imported);
+        EXPECT_EQ(jeff::test::moduleTextFromBuffer(serialized), expected);
     }
 }

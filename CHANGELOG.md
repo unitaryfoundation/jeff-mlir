@@ -14,6 +14,12 @@ keys or payloads during serialization and deserialization. Metadata is preserved
 on modules, functions, regions, operations, and values using the existing
 format.
 
+### Add direct Cap'n Proto message exchange
+
+New `serialize()` and `deserialize()` overloads let callers serialize into a
+caller-owned `capnp::MessageBuilder` and deserialize an existing
+`jeff::Module::Reader` without flattening the message.
+
 ## [0.4.0] - 2026-09-11
 
 This release is compatible with `jeff-v0.3.1`.

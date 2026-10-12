@@ -403,3 +403,26 @@ TEST_F(MetadataTest, InvalidPayloadDoesNotTruncateOutputFile) {
     input.close();
     std::filesystem::remove(path);
 }
+
+TEST_F(MetadataTest, PreservesMetadataThroughDirectMessageExchange) {
+    auto original = makeModule();
+    ASSERT_TRUE(original);
+    auto metadata = arbitraryMetadata();
+    mlir::jeff::setMetadata(*original, metadata);
+    auto function = *original->getOps<mlir::func::FuncOp>().begin();
+    mlir::jeff::setMetadata(function.getArgument(0), textMetadata("theta"));
+
+    mlir::OwningOpRef<mlir::ModuleOp> decoded;
+    {
+        capnp::MallocMessageBuilder message(1, capnp::AllocationStrategy::FIXED_SIZE);
+        serialize(*original, message);
+        capnp::SegmentArrayMessageReader reader(message.getSegmentsForOutput());
+        decoded = deserialize(&context, reader.getRoot<jeff::Module>());
+    }
+    ASSERT_TRUE(decoded);
+    EXPECT_EQ(mlir::jeff::getMetadata(*decoded), metadata);
+    auto decodedFunction = *decoded->getOps<mlir::func::FuncOp>().begin();
+    EXPECT_EQ(mlir::jeff::getMetadata(decodedFunction.getArgument(0)), textMetadata("theta"));
+    auto words = serialize(*decoded);
+    EXPECT_GT(words.size(), 0);
+}

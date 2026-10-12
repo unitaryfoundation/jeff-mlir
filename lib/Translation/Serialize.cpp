@@ -1589,13 +1589,15 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
     }
 }
 
-void writeMessage(mlir::ModuleOp module, capnp::MallocMessageBuilder& message) {
+} // namespace
+
+void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
     SerializationContext ctx;
 
     auto moduleBuilder = message.initRoot<jeff::Module>();
 
     // Get strings
-    auto stringsAttr = llvm::cast<mlir::ArrayAttr>(module->getAttr("jeff.strings"));
+    auto stringsAttr = llvm::cast<mlir::ArrayAttr>(moduleOp->getAttr("jeff.strings"));
     llvm::SmallVector<llvm::StringRef> strings;
     for (auto attr : stringsAttr) {
         strings.push_back(llvm::cast<mlir::StringAttr>(attr).getValue());
@@ -1612,7 +1614,7 @@ void writeMessage(mlir::ModuleOp module, capnp::MallocMessageBuilder& message) {
             }
         }
     };
-    module.walk([&](mlir::Operation* operation) {
+    moduleOp.walk([&](mlir::Operation* operation) {
         auto metadata = mlir::jeff::getMetadata(operation);
         KJ_REQUIRE(!operation->hasTrait<mlir::OpTrait::IsTerminator>() || !metadata ||
                        metadata.empty(),
@@ -1644,7 +1646,7 @@ void writeMessage(mlir::ModuleOp module, capnp::MallocMessageBuilder& message) {
     // Build functions
     uint16_t id = 0;
     llvm::SmallVector<mlir::func::FuncOp> functions;
-    for (auto func : module.getOps<mlir::func::FuncOp>()) {
+    for (auto func : moduleOp.getOps<mlir::func::FuncOp>()) {
         ctx.funcs[func.getSymName()] = id++;
         functions.push_back(func);
     }
@@ -1660,35 +1662,36 @@ void writeMessage(mlir::ModuleOp module, capnp::MallocMessageBuilder& message) {
     }
 
     // Set metadata
-    auto metadata = mlir::jeff::getMetadata(module);
+    auto metadata = mlir::jeff::getMetadata(moduleOp);
     if (metadata) {
         mlir::jeff::serializeMetadata(metadata, moduleBuilder.initMetadata(metadata.size()),
                                       ctx.strings);
     }
     moduleBuilder.setEntrypoint(
-        llvm::cast<mlir::IntegerAttr>(module->getAttr("jeff.entrypoint")).getUInt());
+        llvm::cast<mlir::IntegerAttr>(moduleOp->getAttr("jeff.entrypoint")).getUInt());
 
     moduleBuilder.setTool(
-        llvm::cast<mlir::StringAttr>(module->getAttr("jeff.tool")).getValue().str());
+        llvm::cast<mlir::StringAttr>(moduleOp->getAttr("jeff.tool")).getValue().str());
 
     moduleBuilder.setToolVersion(
-        llvm::cast<mlir::StringAttr>(module->getAttr("jeff.toolVersion")).getValue().str());
+        llvm::cast<mlir::StringAttr>(moduleOp->getAttr("jeff.toolVersion")).getValue().str());
 
     moduleBuilder.setVersion(
-        llvm::cast<mlir::IntegerAttr>(module->getAttr("jeff.version")).getUInt());
+        llvm::cast<mlir::IntegerAttr>(moduleOp->getAttr("jeff.version")).getUInt());
 
     moduleBuilder.setVersionMinor(
-        llvm::cast<mlir::IntegerAttr>(module->getAttr("jeff.versionMinor")).getUInt());
+        llvm::cast<mlir::IntegerAttr>(moduleOp->getAttr("jeff.versionMinor")).getUInt());
 
     moduleBuilder.setVersionPatch(
-        llvm::cast<mlir::IntegerAttr>(module->getAttr("jeff.versionPatch")).getUInt());
+        llvm::cast<mlir::IntegerAttr>(moduleOp->getAttr("jeff.versionPatch")).getUInt());
 }
 
-mlir::LogicalResult writeMessageChecked(mlir::ModuleOp module,
-                                        capnp::MallocMessageBuilder& message) {
-    auto exception = kj::runCatchingExceptions([&] { writeMessage(module, message); });
+namespace {
+
+mlir::LogicalResult writeMessageChecked(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
+    auto exception = kj::runCatchingExceptions([&] { serialize(moduleOp, message); });
     KJ_IF_MAYBE (error, exception) {
-        module.emitError() << "Failed to serialize jeff: " << error->getDescription().cStr();
+        moduleOp.emitError() << "Failed to serialize jeff: " << error->getDescription().cStr();
         return mlir::failure();
     }
     return mlir::success();
@@ -1696,17 +1699,17 @@ mlir::LogicalResult writeMessageChecked(mlir::ModuleOp module,
 
 } // namespace
 
-kj::Array<capnp::word> serialize(mlir::ModuleOp module) {
+kj::Array<capnp::word> serialize(mlir::ModuleOp moduleOp) {
     capnp::MallocMessageBuilder message;
-    if (mlir::failed(writeMessageChecked(module, message))) {
+    if (mlir::failed(writeMessageChecked(moduleOp, message))) {
         return {};
     }
     return capnp::messageToFlatArray(message);
 }
 
-mlir::LogicalResult serializeToFile(mlir::ModuleOp module, llvm::StringRef path) {
+mlir::LogicalResult serializeToFile(mlir::ModuleOp moduleOp, llvm::StringRef path) {
     capnp::MallocMessageBuilder message;
-    if (mlir::failed(writeMessageChecked(module, message))) {
+    if (mlir::failed(writeMessageChecked(moduleOp, message))) {
         return mlir::failure();
     }
 

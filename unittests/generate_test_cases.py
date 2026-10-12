@@ -51,11 +51,11 @@ def _create_and_write_module(operations: list[JeffOp], output_filename: str) -> 
         operations=operations,
     )
     function = FunctionDef(name="main", body=body)
-    module = JeffModule([function])
+    jeffModule = JeffModule([function])
 
     output_file = INPUTS_DIR / output_filename
     output_file.unlink(missing_ok=True)
-    module.write_out(output_file)
+    jeffModule.write_out(output_file)
 
 
 # ===----------------------------------------------------------------------=== #
@@ -616,11 +616,11 @@ def generate_int_const1() -> None:
         operations=[const],
     )
     function = FunctionDef(name="main", body=body)
-    module = JeffModule([function])
+    jeffModule = JeffModule([function])
 
     output_file = INPUTS_DIR / "unit_int_const1.jeff"
     output_file.unlink(missing_ok=True)
-    module.write_out(output_file)
+    jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -636,11 +636,11 @@ def generate_int_const() -> None:
             operations=[const],
         )
         function = FunctionDef(name="main", body=body)
-        module = JeffModule([function])
+        jeffModule = JeffModule([function])
 
         output_file = INPUTS_DIR / f"unit_int_const{bit_width}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -676,11 +676,11 @@ def generate_int_unary() -> None:
         )
         main_function = FunctionDef(name="main", body=main_body)
 
-        module = JeffModule([compute_function, main_function], entrypoint=1)
+        jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
         output_file = INPUTS_DIR / f"unit_int_{operation}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -736,11 +736,11 @@ def generate_int_binary() -> None:
         )
         main_function = FunctionDef(name="main", body=main_body)
 
-        module = JeffModule([compute_function, main_function], entrypoint=1)
+        jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
         output_file = INPUTS_DIR / f"unit_int_{operation}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -778,11 +778,11 @@ def generate_int_comparison() -> None:
         )
         main_function = FunctionDef(name="main", body=main_body)
 
-        module = JeffModule([compute_function, main_function], entrypoint=1)
+        jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
         output_file = INPUTS_DIR / f"unit_int_{operation}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -820,11 +820,11 @@ def generate_int_select() -> None:
     )
     main_function = FunctionDef(name="main", body=main_body)
 
-    module = JeffModule([compute_function, main_function], entrypoint=1)
+    jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
     output_file = INPUTS_DIR / "unit_int_select.jeff"
     output_file.unlink(missing_ok=True)
-    module.write_out(output_file)
+    jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -860,11 +860,11 @@ def generate_int_ext() -> None:
         )
         main_function = FunctionDef(name="main", body=main_body)
 
-        module = JeffModule([compute_function, main_function], entrypoint=1)
+        jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
         output_file = INPUTS_DIR / f"unit_int_{operation}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -898,11 +898,11 @@ def generate_int_trunc() -> None:
     )
     main_function = FunctionDef(name="main", body=main_body)
 
-    module = JeffModule([compute_function, main_function], entrypoint=1)
+    jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
     output_file = INPUTS_DIR / "unit_int_trunc.jeff"
     output_file.unlink(missing_ok=True)
-    module.write_out(output_file)
+    jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -938,11 +938,11 @@ def generate_int_to_float() -> None:
         )
         main_function = FunctionDef(name="main", body=main_body)
 
-        module = JeffModule([compute_function, main_function], entrypoint=1)
+        jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
         output_file = INPUTS_DIR / f"unit_int_{operation}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 # ===----------------------------------------------------------------------=== #
@@ -962,11 +962,11 @@ def generate_int_array_const1() -> None:
         operations=[const],
     )
     function = FunctionDef(name="main", body=body)
-    module = JeffModule([function])
+    jeffModule = JeffModule([function])
 
     output_file = INPUTS_DIR / "unit_int_array_const1.jeff"
     output_file.unlink(missing_ok=True)
-    module.write_out(output_file)
+    jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -986,11 +986,11 @@ def generate_int_array_const() -> None:
             operations=[const],
         )
         function = FunctionDef(name="main", body=body)
-        module = JeffModule([function])
+        jeffModule = JeffModule([function])
 
         output_file = INPUTS_DIR / f"unit_int_array_const{bit_width}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1088,11 +1088,11 @@ def generate_int_array_length() -> None:
     )
     main_function = FunctionDef(name="main", body=main_body)
 
-    module = JeffModule([get_length_function, main_function], entrypoint=1)
+    jeffModule = JeffModule([get_length_function, main_function], entrypoint=1)
 
     output_file = INPUTS_DIR / "unit_int_array_length.jeff"
     output_file.unlink(missing_ok=True)
-    module.write_out(output_file)
+    jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1130,11 +1130,11 @@ def generate_int_array_create() -> None:
     )
     main_function = FunctionDef(name="main", body=main_body)
 
-    module = JeffModule([create_function, main_function], entrypoint=1)
+    jeffModule = JeffModule([create_function, main_function], entrypoint=1)
 
     output_file = INPUTS_DIR / "unit_int_array_create.jeff"
     output_file.unlink(missing_ok=True)
-    module.write_out(output_file)
+    jeffModule.write_out(output_file)
 
 
 # ===----------------------------------------------------------------------=== #
@@ -1155,11 +1155,11 @@ def generate_float_const() -> None:
             operations=[const],
         )
         function = FunctionDef(name="main", body=body)
-        module = JeffModule([function])
+        jeffModule = JeffModule([function])
 
         output_file = INPUTS_DIR / f"unit_float_const{bit_width}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1214,11 +1214,11 @@ def generate_float_unary() -> None:
         )
         main_function = FunctionDef(name="main", body=main_body)
 
-        module = JeffModule([compute_function, main_function], entrypoint=1)
+        jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
         output_file = INPUTS_DIR / f"unit_float_{operation}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1256,11 +1256,11 @@ def generate_float_binary() -> None:
         )
         main_function = FunctionDef(name="main", body=main_body)
 
-        module = JeffModule([compute_function, main_function], entrypoint=1)
+        jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
         output_file = INPUTS_DIR / f"unit_float_{operation}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1298,11 +1298,11 @@ def generate_float_comparison() -> None:
         )
         main_function = FunctionDef(name="main", body=main_body)
 
-        module = JeffModule([compute_function, main_function], entrypoint=1)
+        jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
         output_file = INPUTS_DIR / f"unit_float_{operation}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1338,11 +1338,11 @@ def generate_float_is() -> None:
         )
         main_function = FunctionDef(name="main", body=main_body)
 
-        module = JeffModule([check_function, main_function], entrypoint=1)
+        jeffModule = JeffModule([check_function, main_function], entrypoint=1)
 
         output_file = INPUTS_DIR / f"unit_float_{operation}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1380,11 +1380,11 @@ def generate_float_select() -> None:
     )
     main_function = FunctionDef(name="main", body=main_body)
 
-    module = JeffModule([compute_function, main_function], entrypoint=1)
+    jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
     output_file = INPUTS_DIR / "unit_float_select.jeff"
     output_file.unlink(missing_ok=True)
-    module.write_out(output_file)
+    jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1418,11 +1418,11 @@ def generate_float_ext() -> None:
     )
     main_function = FunctionDef(name="main", body=main_body)
 
-    module = JeffModule([compute_function, main_function], entrypoint=1)
+    jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
     output_file = INPUTS_DIR / "unit_float_ext.jeff"
     output_file.unlink(missing_ok=True)
-    module.write_out(output_file)
+    jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1456,11 +1456,11 @@ def generate_float_trunc() -> None:
     )
     main_function = FunctionDef(name="main", body=main_body)
 
-    module = JeffModule([compute_function, main_function], entrypoint=1)
+    jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
     output_file = INPUTS_DIR / "unit_float_trunc.jeff"
     output_file.unlink(missing_ok=True)
-    module.write_out(output_file)
+    jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1496,11 +1496,11 @@ def generate_float_to_int() -> None:
         )
         main_function = FunctionDef(name="main", body=main_body)
 
-        module = JeffModule([compute_function, main_function], entrypoint=1)
+        jeffModule = JeffModule([compute_function, main_function], entrypoint=1)
 
         output_file = INPUTS_DIR / f"unit_float_{operation}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 # ===----------------------------------------------------------------------=== #
@@ -1525,11 +1525,11 @@ def generate_float_array_const() -> None:
             operations=[const],
         )
         function = FunctionDef(name="main", body=body)
-        module = JeffModule([function])
+        jeffModule = JeffModule([function])
 
         output_file = INPUTS_DIR / f"unit_float_array_const{bit_width}.jeff"
         output_file.unlink(missing_ok=True)
-        module.write_out(output_file)
+        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1627,11 +1627,11 @@ def generate_float_array_length() -> None:
     )
     main_function = FunctionDef(name="main", body=main_body)
 
-    module = JeffModule([get_length_function, main_function], entrypoint=1)
+    jeffModule = JeffModule([get_length_function, main_function], entrypoint=1)
 
     output_file = INPUTS_DIR / "unit_float_array_length.jeff"
     output_file.unlink(missing_ok=True)
-    module.write_out(output_file)
+    jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1669,11 +1669,11 @@ def generate_float_array_create() -> None:
     )
     main_function = FunctionDef(name="main", body=main_body)
 
-    module = JeffModule([create_function, main_function], entrypoint=1)
+    jeffModule = JeffModule([create_function, main_function], entrypoint=1)
 
     output_file = INPUTS_DIR / "unit_float_array_create.jeff"
     output_file.unlink(missing_ok=True)
-    module.write_out(output_file)
+    jeffModule.write_out(output_file)
 
 
 # ===----------------------------------------------------------------------=== #
