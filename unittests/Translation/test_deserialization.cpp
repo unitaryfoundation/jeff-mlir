@@ -78,11 +78,11 @@ class DeserializeErrorTest : public ::testing::Test {
 };
 
 jeff::Value::Builder initInputMetadataModule(capnp::MallocMessageBuilder& message) {
-    auto module = message.initRoot<jeff::Module>();
-    auto strings = module.initStrings(2);
+    auto jeffModule = message.initRoot<jeff::Module>();
+    auto strings = jeffModule.initStrings(2);
     strings.set(0, "main");
     strings.set(1, "vendor.input");
-    auto definition = module.initFunctions(1)[0].initDefinition();
+    auto definition = jeffModule.initFunctions(1)[0].initDefinition();
     auto value = definition.initValues(1)[0];
     value.initType().setFloat(jeff::FloatPrecision::FLOAT64);
     auto body = definition.initBody();

@@ -26,6 +26,7 @@
 #include <mlir/IR/BuiltinTypeInterfaces.h>
 #include <mlir/IR/BuiltinTypes.h>
 #include <mlir/IR/Diagnostics.h>
+#include <mlir/IR/Location.h>
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/OwningOpRef.h>
 #include <mlir/IR/Value.h>
@@ -1206,9 +1207,8 @@ void deserializeBlock(mlir::ImplicitLocOpBuilder& builder, mlir::Block& block,
         mlir::jeff::deserializeMetadata(builder.getContext(), region.getMetadata(), ctx.strings));
 
     // Add sources to map
-    for (auto type : argTypes) {
-        block.addArgument(type, builder.getUnknownLoc());
-    }
+    block.addArguments(argTypes,
+                       llvm::SmallVector<mlir::Location>(argTypes.size(), builder.getUnknownLoc()));
     for (size_t i = 0; i < region.getSources().size(); ++i) {
         ctx.setValue(region.getSources()[i], block.getArgument(i));
     }

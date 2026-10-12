@@ -25,8 +25,8 @@ void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message);
 /**
  * @brief Serialize an MLIR module containing a jeff program into a memory buffer.
  * @param moduleOp The MLIR module to serialize.
- * @return An owned memory buffer containing the serialized jeff module, or an empty buffer
- * after malformed metadata has been diagnosed.
+ * @return An owned memory buffer containing the serialized jeff module, or an empty buffer if
+ * serialization failed.
  *
  * @details
  * Known limitations:

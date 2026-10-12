@@ -1688,7 +1688,7 @@ void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
 
 namespace {
 
-mlir::LogicalResult writeMessageChecked(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
+mlir::LogicalResult writeMessage(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
     auto exception = kj::runCatchingExceptions([&] { serialize(moduleOp, message); });
     KJ_IF_MAYBE (error, exception) {
         moduleOp.emitError() << "Failed to serialize jeff: " << error->getDescription().cStr();
@@ -1701,7 +1701,7 @@ mlir::LogicalResult writeMessageChecked(mlir::ModuleOp moduleOp, capnp::MessageB
 
 kj::Array<capnp::word> serialize(mlir::ModuleOp moduleOp) {
     capnp::MallocMessageBuilder message;
-    if (mlir::failed(writeMessageChecked(moduleOp, message))) {
+    if (mlir::failed(writeMessage(moduleOp, message))) {
         return {};
     }
     return capnp::messageToFlatArray(message);
@@ -1709,7 +1709,7 @@ kj::Array<capnp::word> serialize(mlir::ModuleOp moduleOp) {
 
 mlir::LogicalResult serializeToFile(mlir::ModuleOp moduleOp, llvm::StringRef path) {
     capnp::MallocMessageBuilder message;
-    if (mlir::failed(writeMessageChecked(moduleOp, message))) {
+    if (mlir::failed(writeMessage(moduleOp, message))) {
         return mlir::failure();
     }
 

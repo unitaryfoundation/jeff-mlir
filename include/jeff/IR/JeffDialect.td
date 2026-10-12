@@ -29,27 +29,6 @@ def JeffDialect : Dialect {
         The `jeff` dialect represents the `jeff` quantum program exchange format
         in MLIR. It provides quantum types and operations alongside classical
         computation and structured control flow.
-
-        Metadata entries use a list of dictionaries with a string `name` and a
-        dense i8 array `value`. Each dictionary contains only these two fields.
-        Each value holds a complete Cap'n Proto message
-        whose root is the metadata's `AnyPointer` payload. Keys and payloads are
-        preserved without interpretation, including unknown schemas and repeated
-        keys. Tools define the encoding and meaning of their own metadata.
-
-        Modules, functions, and operations carry `jeff.metadata`. Function
-        arguments carry the same attribute in their argument dictionaries.
-        Metadata for operation results uses `jeff.result_metadata`, indexed by
-        result. Region metadata uses `jeff.region_metadata`, indexed by region.
-        Other region arguments use `jeff.argument_metadata`, indexed first by
-        region and then by argument. Empty lists represent elements without
-        metadata. Regions must have one block, as required by translation.
-        Module bodies and terminators have no corresponding metadata attachment
-        point in `jeff` and cannot carry region or operation metadata.
-
-        These attributes preserve metadata through serialization and
-        deserialization. Transformations must decide how metadata follows
-        replaced values and regions; the dialect does not interpret it.
     }];
 
     /// This is the namespace of the dialect in MLIR, which is used as a prefix for types and ops.

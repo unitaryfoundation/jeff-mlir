@@ -180,11 +180,11 @@ TEST_F(MetadataTest, PreservesAllAttachmentPointsAndOpaquePayloads) {
 
 TEST_F(MetadataTest, ReadsInputMetadataBySourceIndex) {
     capnp::MallocMessageBuilder message;
-    auto module = message.initRoot<jeff::Module>();
-    auto strings = module.initStrings(2);
+    auto jeffModule = message.initRoot<jeff::Module>();
+    auto strings = jeffModule.initStrings(2);
     strings.set(0, "main");
     strings.set(1, "mqt.input_name");
-    auto definition = module.initFunctions(1)[0].initDefinition();
+    auto definition = jeffModule.initFunctions(1)[0].initDefinition();
     auto values = definition.initValues(3);
     for (auto value : values) {
         value.initType().setFloat(jeff::FloatPrecision::FLOAT64);
@@ -228,9 +228,9 @@ TEST_F(MetadataTest, ReadsInputMetadataBySourceIndex) {
 }
 
 TEST_F(MetadataTest, ReplacesAndClearsMetadata) {
-    auto module = makeModule();
-    ASSERT_TRUE(module);
-    auto function = *module->getOps<mlir::func::FuncOp>().begin();
+    auto moduleOp = makeModule();
+    ASSERT_TRUE(moduleOp);
+    auto function = *moduleOp->getOps<mlir::func::FuncOp>().begin();
     auto theta = function.getArgument(0);
     auto phi = function.getArgument(1);
     mlir::jeff::setMetadata(theta, textMetadata("theta"));
@@ -249,7 +249,7 @@ TEST_F(MetadataTest, ReplacesAndClearsMetadata) {
     mlir::jeff::setMetadata(nested.getArgument(0), textMetadata("argument"));
     mlir::jeff::setMetadata(nested.getArgument(0), {});
 
-    auto words = serialize(*module);
+    auto words = serialize(*moduleOp);
     ASSERT_GT(words.size(), 0);
     auto decoded = deserialize(&context, words);
     ASSERT_TRUE(decoded);
@@ -264,9 +264,9 @@ TEST_F(MetadataTest, ReplacesAndClearsMetadata) {
 }
 
 TEST_F(MetadataTest, DiagnosesMalformedPayloadsAndContinuesSerializing) {
-    auto module = makeModule();
-    ASSERT_TRUE(module);
-    auto function = *module->getOps<mlir::func::FuncOp>().begin();
+    auto moduleOp = makeModule();
+    ASSERT_TRUE(moduleOp);
+    auto function = *moduleOp->getOps<mlir::func::FuncOp>().begin();
     std::string diagnostic;
     mlir::ScopedDiagnosticHandler handler(&context, [&](mlir::Diagnostic& error) {
         diagnostic = error.str();
@@ -292,39 +292,39 @@ TEST_F(MetadataTest, DiagnosesMalformedPayloadsAndContinuesSerializing) {
             });
         mlir::jeff::setMetadata(function.getArgument(0), metadata);
         diagnostic.clear();
-        EXPECT_EQ(serialize(*module).size(), 0);
+        EXPECT_EQ(serialize(*moduleOp).size(), 0);
         EXPECT_NE(diagnostic.find("Failed to serialize jeff"), std::string::npos) << diagnostic;
     }
     mlir::jeff::setMetadata(function.getArgument(0), textMetadata("theta"));
-    auto words = serialize(*module);
+    auto words = serialize(*moduleOp);
     EXPECT_GT(words.size(), 0);
     EXPECT_TRUE(deserialize(&context, words));
 }
 
 TEST_F(MetadataTest, DiagnosesInvalidStorage) {
-    auto module = makeModule();
-    ASSERT_TRUE(module);
-    auto function = *module->getOps<mlir::func::FuncOp>().begin();
+    auto moduleOp = makeModule();
+    ASSERT_TRUE(moduleOp);
+    auto function = *moduleOp->getOps<mlir::func::FuncOp>().begin();
     std::string diagnostic;
     mlir::ScopedDiagnosticHandler handler(&context, [&](mlir::Diagnostic& error) {
         diagnostic = error.str();
         return mlir::success();
     });
     function->setAttr("jeff.metadata", mlir::StringAttr::get(&context, "wrong type"));
-    EXPECT_EQ(serialize(*module).size(), 0);
+    EXPECT_EQ(serialize(*moduleOp).size(), 0);
     EXPECT_NE(diagnostic.find("Metadata storage must be an array"), std::string::npos);
     function->removeAttr("jeff.metadata");
 
     function->setAttr("jeff.result_metadata",
                       mlir::ArrayAttr::get(&context, {textMetadata("extra")}));
-    EXPECT_EQ(serialize(*module).size(), 0);
+    EXPECT_EQ(serialize(*moduleOp).size(), 0);
     function->removeAttr("jeff.result_metadata");
 }
 
 TEST_F(MetadataTest, RejectsMetadataWithoutAnExchangeAttachmentPoint) {
-    auto module = makeModule();
-    ASSERT_TRUE(module);
-    auto function = *module->getOps<mlir::func::FuncOp>().begin();
+    auto moduleOp = makeModule();
+    ASSERT_TRUE(moduleOp);
+    auto function = *moduleOp->getOps<mlir::func::FuncOp>().begin();
     std::string diagnostic;
     mlir::ScopedDiagnosticHandler handler(&context, [&](mlir::Diagnostic& error) {
         diagnostic = error.str();
@@ -332,11 +332,11 @@ TEST_F(MetadataTest, RejectsMetadataWithoutAnExchangeAttachmentPoint) {
     });
     auto& terminator = function.getBody().front().back();
     mlir::jeff::setMetadata(&terminator, textMetadata("terminator"));
-    EXPECT_EQ(serialize(*module).size(), 0);
+    EXPECT_EQ(serialize(*moduleOp).size(), 0);
     EXPECT_NE(diagnostic.find("Terminator metadata has no jeff operation"), std::string::npos);
     mlir::jeff::setMetadata(&terminator, {});
-    mlir::jeff::setMetadata(module->getBodyRegion(), textMetadata("module body"));
-    EXPECT_EQ(serialize(*module).size(), 0);
+    mlir::jeff::setMetadata(moduleOp->getBodyRegion(), textMetadata("module body"));
+    EXPECT_EQ(serialize(*moduleOp).size(), 0);
     EXPECT_NE(diagnostic.find("Module body metadata has no jeff region"), std::string::npos);
 }
 
@@ -354,18 +354,18 @@ TEST_F(MetadataTest, RejectsInvalidNamesAtEveryAttachmentPoint) {
         SCOPED_TRACE(site);
         capnp::MallocMessageBuilder message;
         message.setRoot(reader.getRoot<jeff::Module>());
-        auto module = message.getRoot<jeff::Module>();
-        auto function = module.getFunctions()[0];
+        auto jeffModule = message.getRoot<jeff::Module>();
+        auto function = jeffModule.getFunctions()[0];
         auto definition = function.getDefinition();
         auto body = definition.getBody();
         std::array<jeff::Meta::Builder, 5> entries{
-            module.initMetadata(1)[0],
+            jeffModule.initMetadata(1)[0],
             function.initMetadata(1)[0],
             body.initMetadata(1)[0],
             body.getOperations()[0].initMetadata(1)[0],
             definition.getValues()[0].initMetadata(1)[0],
         };
-        entries[site].setName(module.getStrings().size());
+        entries[site].setName(jeffModule.getStrings().size());
         auto invalid = capnp::messageToFlatArray(message);
         diagnostic.clear();
         EXPECT_FALSE(deserialize(&context, invalid));
@@ -375,8 +375,8 @@ TEST_F(MetadataTest, RejectsInvalidNamesAtEveryAttachmentPoint) {
 }
 
 TEST_F(MetadataTest, InvalidPayloadDoesNotTruncateOutputFile) {
-    auto module = makeModule();
-    ASSERT_TRUE(module);
+    auto moduleOp = makeModule();
+    ASSERT_TRUE(moduleOp);
     auto metadata = mlir::ArrayAttr::get(
         &context,
         {
@@ -392,10 +392,10 @@ TEST_F(MetadataTest, InvalidPayloadDoesNotTruncateOutputFile) {
                                           },
                                       }),
         });
-    mlir::jeff::setMetadata(*module, metadata);
+    mlir::jeff::setMetadata(*moduleOp, metadata);
     const auto path = std::filesystem::path(::testing::TempDir()) / "invalid_metadata_output.jeff";
     std::ofstream(path) << "previous contents";
-    EXPECT_TRUE(mlir::failed(serializeToFile(*module, path.string())));
+    EXPECT_TRUE(mlir::failed(serializeToFile(*moduleOp, path.string())));
     std::ifstream input(path);
     std::string contents;
     std::getline(input, contents);
