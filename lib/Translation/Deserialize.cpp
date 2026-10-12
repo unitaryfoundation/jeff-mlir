@@ -1202,10 +1202,6 @@ void deserializeBlock(mlir::ImplicitLocOpBuilder& builder, mlir::Block& block,
     mlir::OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToStart(&block);
 
-    mlir::jeff::setMetadata(
-        *block.getParent(),
-        mlir::jeff::deserializeMetadata(builder.getContext(), region.getMetadata(), ctx.strings));
-
     // Add sources to map
     block.addArguments(argTypes,
                        llvm::SmallVector<mlir::Location>(argTypes.size(), builder.getUnknownLoc()));
@@ -1223,6 +1219,10 @@ void deserializeBlock(mlir::ImplicitLocOpBuilder& builder, mlir::Block& block,
     }
 
     mlir::jeff::YieldOp::create(builder, targetValues);
+
+    mlir::jeff::setMetadata(
+        *block.getParent(),
+        mlir::jeff::deserializeMetadata(builder.getContext(), region.getMetadata(), ctx.strings));
 }
 
 void deserializeSwitch(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reader& operation,
@@ -1507,6 +1507,7 @@ auto deserializeOperations(mlir::ImplicitLocOpBuilder& builder,
             llvm::errs() << "Cannot deserialize instruction " << instruction.which() << "\n";
             KJ_FAIL_REQUIRE("Unknown instruction") {}
         }
+
         auto& created = *std::prev(builder.getInsertionPoint());
         mlir::jeff::setMetadata(&created, mlir::jeff::deserializeMetadata(builder.getContext(),
                                                                           operation.getMetadata(),
@@ -1555,9 +1556,10 @@ void deserializeFunctionSignature(mlir::ImplicitLocOpBuilder& builder,
     const auto funcName = ctx.strings[function.getName()];
     auto funcType = builder.getFunctionType(sourceTypes, targetTypes);
     auto func = mlir::func::FuncOp::create(builder, funcName, funcType);
+    ctx.setFunc(functionId, func);
+
     mlir::jeff::setMetadata(func, mlir::jeff::deserializeMetadata(
                                       builder.getContext(), function.getMetadata(), ctx.strings));
-    ctx.setFunc(functionId, func);
 }
 
 void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
@@ -1583,9 +1585,6 @@ void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
         ctx.setValue(source, entryBlock.getArgument(i));
     }
 
-    mlir::jeff::setMetadata(
-        func.getBody(),
-        mlir::jeff::deserializeMetadata(builder.getContext(), body.getMetadata(), ctx.strings));
     deserializeOperations(builder, operations, ctx);
 
     llvm::SmallVector<mlir::Value> results;
@@ -1596,6 +1595,10 @@ void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
 
     // Create return statement
     mlir::func::ReturnOp::create(builder, results);
+
+    mlir::jeff::setMetadata(
+        func.getBody(),
+        mlir::jeff::deserializeMetadata(builder.getContext(), body.getMetadata(), ctx.strings));
 }
 
 mlir::OwningOpRef<mlir::ModuleOp> deserializeModule(mlir::MLIRContext* context,
@@ -1640,6 +1643,7 @@ mlir::OwningOpRef<mlir::ModuleOp> deserializeModule(mlir::MLIRContext* context,
     mlir::jeff::setMetadata(mlirModule,
                             mlir::jeff::deserializeMetadata(builder.getContext(),
                                                             jeffModule.getMetadata(), ctx.strings));
+
     auto uint16Type = builder.getIntegerType(16, false);
 
     const auto entryPoint = jeffModule.getEntrypoint();

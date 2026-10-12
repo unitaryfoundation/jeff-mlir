@@ -1299,6 +1299,7 @@ void serializeRegion(jeff::Region::Builder builder, mlir::Region& region,
     if (metadata) {
         mlir::jeff::serializeMetadata(metadata, builder.initMetadata(metadata.size()), ctx.strings);
     }
+
     const auto numSources = region.getNumArguments();
     auto sources = builder.initSources(numSources);
     for (size_t i = 0; i < numSources; ++i) {
@@ -1507,6 +1508,7 @@ void serializeOperation(jeff::Op::Builder builder, mlir::Operation* operation,
     if (metadata) {
         mlir::jeff::serializeMetadata(metadata, builder.initMetadata(metadata.size()), ctx.strings);
     }
+
     llvm::TypeSwitch<mlir::Operation*, void>(operation)
         .Case<mlir::jeff::QubitOperation>([&](auto op) { serializeQubit(builder, op, ctx); })
         .Case<mlir::jeff::QuregOperation>([&](auto op) { serializeQureg(builder, op, ctx); })
@@ -1532,6 +1534,7 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
         mlir::jeff::serializeMetadata(metadata, functionBuilder.initMetadata(metadata.size()),
                                       ctx.strings);
     }
+
     auto defBuilder = functionBuilder.initDefinition();
     auto& entryBlock = func.getRegion().front();
 
