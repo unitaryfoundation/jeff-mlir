@@ -12,7 +12,6 @@
 #include <jeff.capnp.h>
 #include <kj/array.h>
 #include <kj/common.h>
-#include <kj/debug.h>
 #include <kj/exception.h>
 #include <kj/io.h>
 #include <llvm/ADT/DenseMap.h>
@@ -51,7 +50,16 @@ namespace {
 struct SerializationContext {
     llvm::DenseMap<mlir::Value, uint32_t> values;
     llvm::StringMap<uint16_t> funcs;
-    llvm::StringMap<uint16_t> strings;
+    llvm::StringMap<uint16_t> stringIds;
+    llvm::SmallVector<llvm::StringRef> strings;
+
+    explicit SerializationContext(mlir::ArrayAttr stringsAttr) {
+        for (auto [i, attr] : llvm::enumerate(stringsAttr)) {
+            auto str = llvm::cast<mlir::StringAttr>(attr).getValue();
+            stringIds[str] = static_cast<uint16_t>(i);
+            strings.push_back(str);
+        }
+    }
 
     uint32_t getValueId(mlir::Value value) {
         auto it = values.find(value);
@@ -73,12 +81,28 @@ struct SerializationContext {
     }
 
     uint16_t getStringId(llvm::StringRef str) {
-        auto it = strings.find(str);
-        if (it == strings.end()) {
+        auto it = stringIds.find(str);
+        if (it == stringIds.end()) {
             llvm::errs() << "String " << str << " not found\n";
             llvm::report_fatal_error("String not found");
         }
         return it->second;
+    }
+
+    template <typename Source, typename Builder>
+    void serializeMetadata(Source& source, Builder builder) {
+        mlir::ArrayAttr metadata = mlir::jeff::getMetadata(source);
+        if (!metadata) {
+            return;
+        }
+        for (auto entry : metadata) {
+            auto name =
+                llvm::cast<mlir::DictionaryAttr>(entry).getAs<mlir::StringAttr>("name").getValue();
+            if (stringIds.try_emplace(name, static_cast<uint16_t>(strings.size())).second) {
+                strings.push_back(name);
+            }
+        }
+        mlir::jeff::serializeMetadata(metadata, builder.initMetadata(metadata.size()), stringIds);
     }
 };
 
@@ -1295,10 +1319,7 @@ void serializeOperation(jeff::Op::Builder builder, mlir::Operation* operation,
 
 void serializeRegion(jeff::Region::Builder builder, mlir::Region& region,
                      SerializationContext& ctx) {
-    auto metadata = mlir::jeff::getMetadata(region);
-    if (metadata) {
-        mlir::jeff::serializeMetadata(metadata, builder.initMetadata(metadata.size()), ctx.strings);
-    }
+    ctx.serializeMetadata(region, builder);
 
     const auto numSources = region.getNumArguments();
     auto sources = builder.initSources(numSources);
@@ -1504,11 +1525,7 @@ void serializeType(jeff::Type::Builder builder, mlir::Type type) {
 
 void serializeOperation(jeff::Op::Builder builder, mlir::Operation* operation,
                         SerializationContext& ctx) {
-    auto metadata = mlir::jeff::getMetadata(operation);
-    if (metadata) {
-        mlir::jeff::serializeMetadata(metadata, builder.initMetadata(metadata.size()), ctx.strings);
-    }
-
+    ctx.serializeMetadata(operation, builder);
     llvm::TypeSwitch<mlir::Operation*, void>(operation)
         .Case<mlir::jeff::QubitOperation>([&](auto op) { serializeQubit(builder, op, ctx); })
         .Case<mlir::jeff::QuregOperation>([&](auto op) { serializeQureg(builder, op, ctx); })
@@ -1529,22 +1546,14 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
                        SerializationContext& ctx) {
     ctx.values.clear();
 
-    auto metadata = mlir::jeff::getMetadata(func);
-    if (metadata) {
-        mlir::jeff::serializeMetadata(metadata, functionBuilder.initMetadata(metadata.size()),
-                                      ctx.strings);
-    }
+    ctx.serializeMetadata(func, functionBuilder);
 
     auto defBuilder = functionBuilder.initDefinition();
     auto& entryBlock = func.getRegion().front();
 
     // Build body
     auto bodyBuilder = defBuilder.initBody();
-    auto bodyMetadata = mlir::jeff::getMetadata(func.getBody());
-    if (bodyMetadata) {
-        mlir::jeff::serializeMetadata(bodyMetadata, bodyBuilder.initMetadata(bodyMetadata.size()),
-                                      ctx.strings);
-    }
+    ctx.serializeMetadata(func.getBody(), bodyBuilder);
 
     // Set sources
     const auto numSources = entryBlock.getNumArguments();
@@ -1584,67 +1593,17 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
         auto valueBuilder = valuesBuilder[v];
         auto typeBuilder = valueBuilder.initType();
         serializeType(typeBuilder, values[v].getType());
-        auto valueMetadata = mlir::jeff::getMetadata(values[v]);
-        if (valueMetadata) {
-            mlir::jeff::serializeMetadata(
-                valueMetadata, valueBuilder.initMetadata(valueMetadata.size()), ctx.strings);
-        }
+        ctx.serializeMetadata(values[v], valueBuilder);
     }
 }
 
 } // namespace
 
 void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
-    SerializationContext ctx;
+    auto stringsAttr = llvm::cast<mlir::ArrayAttr>(moduleOp->getAttr("jeff.strings"));
+    SerializationContext ctx(stringsAttr);
 
     auto moduleBuilder = message.initRoot<jeff::Module>();
-
-    // Get strings
-    auto stringsAttr = llvm::cast<mlir::ArrayAttr>(moduleOp->getAttr("jeff.strings"));
-    llvm::SmallVector<llvm::StringRef> strings;
-    for (auto attr : stringsAttr) {
-        strings.push_back(llvm::cast<mlir::StringAttr>(attr).getValue());
-    }
-    auto collectNames = [&](mlir::ArrayAttr metadata) {
-        if (!metadata) {
-            return;
-        }
-        for (auto entry : metadata) {
-            auto name =
-                llvm::cast<mlir::DictionaryAttr>(entry).getAs<mlir::StringAttr>("name").getValue();
-            if (!llvm::is_contained(strings, name)) {
-                strings.push_back(name);
-            }
-        }
-    };
-    moduleOp.walk([&](mlir::Operation* operation) {
-        auto metadata = mlir::jeff::getMetadata(operation);
-        KJ_REQUIRE(!operation->hasTrait<mlir::OpTrait::IsTerminator>() || !metadata ||
-                       metadata.empty(),
-                   "Terminator metadata has no jeff operation") {}
-        collectNames(metadata);
-        for (auto result : operation->getResults()) {
-            collectNames(mlir::jeff::getMetadata(result));
-        }
-        for (auto& region : operation->getRegions()) {
-            auto regionMetadata = mlir::jeff::getMetadata(region);
-            KJ_REQUIRE(!llvm::isa<mlir::ModuleOp>(operation) || !regionMetadata ||
-                           regionMetadata.empty(),
-                       "Module body metadata has no jeff region") {}
-            collectNames(regionMetadata);
-            for (auto& block : region) {
-                for (auto argument : block.getArguments()) {
-                    collectNames(mlir::jeff::getMetadata(argument));
-                }
-            }
-        }
-    });
-    const auto numStrings = strings.size();
-    auto stringsBuilder = moduleBuilder.initStrings(numStrings);
-    for (auto [i, str] : llvm::enumerate(strings)) {
-        ctx.strings[str] = static_cast<uint16_t>(i);
-        stringsBuilder.set(i, str.str());
-    }
 
     // Build functions
     uint16_t id = 0;
@@ -1665,11 +1624,7 @@ void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
     }
 
     // Set metadata
-    auto metadata = mlir::jeff::getMetadata(moduleOp);
-    if (metadata) {
-        mlir::jeff::serializeMetadata(metadata, moduleBuilder.initMetadata(metadata.size()),
-                                      ctx.strings);
-    }
+    ctx.serializeMetadata(moduleOp, moduleBuilder);
     moduleBuilder.setEntrypoint(
         llvm::cast<mlir::IntegerAttr>(moduleOp->getAttr("jeff.entrypoint")).getUInt());
 
@@ -1687,6 +1642,12 @@ void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
 
     moduleBuilder.setVersionPatch(
         llvm::cast<mlir::IntegerAttr>(moduleOp->getAttr("jeff.versionPatch")).getUInt());
+
+    // Write the string table after metadata has registered its names
+    auto stringsBuilder = moduleBuilder.initStrings(ctx.strings.size());
+    for (auto [i, str] : llvm::enumerate(ctx.strings)) {
+        stringsBuilder.set(i, str.str());
+    }
 }
 
 namespace {

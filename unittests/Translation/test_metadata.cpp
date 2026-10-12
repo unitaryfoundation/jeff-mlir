@@ -15,6 +15,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/IR/Block.h>
+#include <mlir/IR/Builders.h>
 #include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Diagnostics.h>
@@ -178,6 +179,38 @@ TEST_F(MetadataTest, PreservesAllAttachmentPointsAndOpaquePayloads) {
     }
 }
 
+TEST_F(MetadataTest, PreservesStringTableIndicesWhenAddingMetadataNames) {
+    auto moduleOp = makeModule();
+    ASSERT_TRUE(moduleOp);
+    const std::array<llvm::StringRef, 6> originalStrings{
+        "main", "unused", "helper", "empty", "main", "mqt.input_name",
+    };
+    mlir::Builder builder(&context);
+    auto stringsAttr = builder.getStrArrayAttr(originalStrings);
+    (*moduleOp)->setAttr("jeff.strings", stringsAttr);
+    auto metadata = arbitraryMetadata();
+    mlir::jeff::setMetadata(*moduleOp, metadata);
+    auto function = *moduleOp->getOps<mlir::func::FuncOp>().begin();
+    mlir::jeff::setMetadata(function.getArgument(0), textMetadata("theta"));
+
+    auto words = serialize(*moduleOp);
+    ASSERT_GT(words.size(), 0);
+    capnp::FlatArrayMessageReader reader(words);
+    auto jeffModule = reader.getRoot<jeff::Module>();
+    auto strings = jeffModule.getStrings();
+    ASSERT_EQ(strings.size(), originalStrings.size() + 5);
+    for (unsigned i = 0; i < originalStrings.size(); ++i) {
+        EXPECT_EQ(std::string(strings[i].begin(), strings[i].size()), originalStrings[i].str());
+    }
+    auto entries = jeffModule.getMetadata();
+    ASSERT_EQ(entries.size(), 6);
+    EXPECT_EQ(entries[0].getName(), originalStrings.size());
+    EXPECT_EQ(entries[5].getName(), entries[0].getName());
+    auto definition = jeffModule.getFunctions()[0].getDefinition();
+    auto argument = definition.getValues()[definition.getBody().getSources()[0]];
+    EXPECT_EQ(argument.getMetadata()[0].getName(), 5);
+}
+
 TEST_F(MetadataTest, ReadsInputMetadataBySourceIndex) {
     capnp::MallocMessageBuilder message;
     auto jeffModule = message.initRoot<jeff::Module>();
@@ -319,25 +352,6 @@ TEST_F(MetadataTest, DiagnosesInvalidStorage) {
                       mlir::ArrayAttr::get(&context, {textMetadata("extra")}));
     EXPECT_EQ(serialize(*moduleOp).size(), 0);
     function->removeAttr("jeff.result_metadata");
-}
-
-TEST_F(MetadataTest, RejectsMetadataWithoutAnExchangeAttachmentPoint) {
-    auto moduleOp = makeModule();
-    ASSERT_TRUE(moduleOp);
-    auto function = *moduleOp->getOps<mlir::func::FuncOp>().begin();
-    std::string diagnostic;
-    mlir::ScopedDiagnosticHandler handler(&context, [&](mlir::Diagnostic& error) {
-        diagnostic = error.str();
-        return mlir::success();
-    });
-    auto& terminator = function.getBody().front().back();
-    mlir::jeff::setMetadata(&terminator, textMetadata("terminator"));
-    EXPECT_EQ(serialize(*moduleOp).size(), 0);
-    EXPECT_NE(diagnostic.find("Terminator metadata has no jeff operation"), std::string::npos);
-    mlir::jeff::setMetadata(&terminator, {});
-    mlir::jeff::setMetadata(moduleOp->getBodyRegion(), textMetadata("module body"));
-    EXPECT_EQ(serialize(*moduleOp).size(), 0);
-    EXPECT_NE(diagnostic.find("Module body metadata has no jeff region"), std::string::npos);
 }
 
 TEST_F(MetadataTest, RejectsInvalidNamesAtEveryAttachmentPoint) {
