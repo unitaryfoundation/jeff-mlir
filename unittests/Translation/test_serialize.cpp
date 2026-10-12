@@ -13,11 +13,8 @@
 namespace fs = std::filesystem;
 
 TEST(SerializeToFileTest, WritesFileThatRoundTrips) {
-    mlir::DialectRegistry registry;
-    registry.insert<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
-
-    mlir::MLIRContext context(registry);
-    context.loadAllAvailableDialects();
+    mlir::MLIRContext context;
+    context.loadDialect<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
 
     const fs::path inputsDir = TEST_INPUTS_DIR;
     const auto& input = inputsDir / "bell_pair.jeff";
@@ -32,16 +29,13 @@ TEST(SerializeToFileTest, WritesFileThatRoundTrips) {
 }
 
 TEST(SerializeToFileTest, FailsForUnwritablePath) {
-    mlir::DialectRegistry registry;
-    registry.insert<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
-
-    mlir::MLIRContext context(registry);
-    context.loadAllAvailableDialects();
+    mlir::MLIRContext context;
+    context.loadDialect<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
 
     const fs::path inputsDir = TEST_INPUTS_DIR;
     auto mlirModule = deserializeFromFile(&context, (inputsDir / "bell_pair.jeff").string());
     ASSERT_TRUE(mlirModule);
 
-    const auto output = fs::path(::testing::TempDir()) / "missing" / "serialize_to_file.jeff";
+    const auto output = inputsDir / "bell_pair.jeff" / "serialize_to_file.jeff";
     EXPECT_TRUE(mlir::failed(serializeToFile(*mlirModule, output.string())));
 }

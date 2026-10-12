@@ -87,7 +87,6 @@ jeff::Value::Builder initInputMetadataModule(capnp::MallocMessageBuilder& messag
     value.initType().setFloat(jeff::FloatPrecision::FLOAT64);
     auto body = definition.initBody();
     body.initSources(1).set(0, 0);
-    body.initTargets(0);
     body.initOperations(0);
     auto metadata = value.initMetadata(1)[0];
     metadata.setName(1);
@@ -98,22 +97,14 @@ jeff::Value::Builder initInputMetadataModule(capnp::MallocMessageBuilder& messag
 } // namespace
 
 TEST(DeserializeFromFileTest, ReturnsNullForMissingFile) {
-    mlir::DialectRegistry registry;
-    registry.insert<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
-
-    mlir::MLIRContext context(registry);
-    context.loadAllAvailableDialects();
+    mlir::MLIRContext context;
 
     const auto input = fs::path(::testing::TempDir()) / "missing" / "does_not_exist.jeff";
     EXPECT_FALSE(deserializeFromFile(&context, input.string()));
 }
 
 TEST(DeserializeFromFileTest, ReturnsNullForTruncatedFile) {
-    mlir::DialectRegistry registry;
-    registry.insert<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
-
-    mlir::MLIRContext context(registry);
-    context.loadAllAvailableDialects();
+    mlir::MLIRContext context;
 
     // Drop a single byte so that the size is no longer a multiple of the word size.
     const fs::path inputsDir = TEST_INPUTS_DIR;
@@ -155,11 +146,8 @@ TEST_F(DeserializeErrorTest, RejectsUndefinedValues) {
     auto definition = function.initDefinition();
     definition.initValues(1)[0].initType().setQubit();
     auto body = definition.initBody();
-    body.initSources(0);
-    body.initTargets(0);
     auto free = body.initOperations(1)[0];
     free.initInputs(1).set(0, 0);
-    free.initOutputs(0);
     free.initInstruction().initQubit().setFree();
     checkRejected(undefinedValue, "Value not found");
 }
@@ -172,10 +160,7 @@ TEST_F(DeserializeErrorTest, RejectsDuplicateFunctions) {
     for (auto duplicate : duplicates.initFunctions(2)) {
         duplicate.setName(0);
         auto empty = duplicate.initDefinition();
-        empty.initValues(0);
         auto region = empty.initBody();
-        region.initSources(0);
-        region.initTargets(0);
         region.initOperations(0);
     }
     checkRejected(duplicateFunctions, "Verification of MLIR module failed");

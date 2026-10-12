@@ -10,6 +10,7 @@
 #include <capnp/serialize.h>
 #include <gtest/gtest.h>
 #include <jeff.capnp.h>
+#include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/raw_ostream.h>
@@ -82,6 +83,16 @@ class MetadataTest : public ::testing::Test {
         const std::array<std::string, 1> names{"mqt.input_name"};
         return mlir::jeff::deserializeMetadata(&context, message.getRoot<capnp::List<jeff::Meta>>(),
                                                names);
+    }
+
+    mlir::ArrayAttr payloadMetadata(llvm::ArrayRef<int8_t> bytes) {
+        mlir::Builder builder(&context);
+        return builder.getArrayAttr({
+            builder.getDictionaryAttr({
+                builder.getNamedAttr("name", builder.getStringAttr("vendor.payload")),
+                builder.getNamedAttr("value", builder.getDenseI8ArrayAttr(bytes)),
+            }),
+        });
     }
 
     mlir::ArrayAttr arbitraryMetadata() {
@@ -233,7 +244,6 @@ TEST_F(MetadataTest, ReadsInputMetadataBySourceIndex) {
     sources.set(0, 2);
     sources.set(1, 0);
     sources.set(2, 1);
-    body.initTargets(0);
     body.initOperations(0);
 
     auto words = capnp::messageToFlatArray(message);
@@ -308,22 +318,7 @@ TEST_F(MetadataTest, DiagnosesMalformedPayloadsAndContinuesSerializing) {
     for (unsigned size : {0U, 1U, 8U}) {
         SCOPED_TRACE(size);
         llvm::SmallVector<int8_t> bytes(size, 0);
-        auto metadata = mlir::ArrayAttr::get(
-            &context,
-            {
-                mlir::DictionaryAttr::get(&context,
-                                          {
-                                              {
-                                                  mlir::StringAttr::get(&context, "name"),
-                                                  mlir::StringAttr::get(&context, "vendor.payload"),
-                                              },
-                                              {
-                                                  mlir::StringAttr::get(&context, "value"),
-                                                  mlir::DenseI8ArrayAttr::get(&context, bytes),
-                                              },
-                                          }),
-            });
-        mlir::jeff::setMetadata(function.getArgument(0), metadata);
+        mlir::jeff::setMetadata(function.getArgument(0), payloadMetadata(bytes));
         diagnostic.clear();
         EXPECT_EQ(serialize(*moduleOp).size(), 0);
         EXPECT_NE(diagnostic.find("Failed to serialize jeff"), std::string::npos) << diagnostic;
@@ -391,22 +386,7 @@ TEST_F(MetadataTest, RejectsInvalidNamesAtEveryAttachmentPoint) {
 TEST_F(MetadataTest, InvalidPayloadDoesNotTruncateOutputFile) {
     auto moduleOp = makeModule();
     ASSERT_TRUE(moduleOp);
-    auto metadata = mlir::ArrayAttr::get(
-        &context,
-        {
-            mlir::DictionaryAttr::get(&context,
-                                      {
-                                          {
-                                              mlir::StringAttr::get(&context, "name"),
-                                              mlir::StringAttr::get(&context, "vendor.payload"),
-                                          },
-                                          {
-                                              mlir::StringAttr::get(&context, "value"),
-                                              mlir::DenseI8ArrayAttr::get(&context, {1}),
-                                          },
-                                      }),
-        });
-    mlir::jeff::setMetadata(*moduleOp, metadata);
+    mlir::jeff::setMetadata(*moduleOp, payloadMetadata({1}));
     const auto path = std::filesystem::path(::testing::TempDir()) / "invalid_metadata_output.jeff";
     std::ofstream(path) << "previous contents";
     EXPECT_TRUE(mlir::failed(serializeToFile(*moduleOp, path.string())));
