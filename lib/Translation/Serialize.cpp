@@ -31,6 +31,7 @@
 #include <mlir/IR/BuiltinTypeInterfaces.h>
 #include <mlir/IR/BuiltinTypes.h>
 #include <mlir/IR/Diagnostics.h>
+#include <mlir/IR/Location.h>
 #include <mlir/IR/OpDefinition.h>
 #include <mlir/IR/Types.h>
 #include <mlir/IR/Value.h>
@@ -52,6 +53,7 @@ struct SerializationContext {
     llvm::StringMap<uint16_t> funcs;
     llvm::StringMap<uint16_t> stringIds;
     llvm::SmallVector<llvm::StringRef> strings;
+    mlir::LogicalResult result = mlir::success();
 
     explicit SerializationContext(mlir::ArrayAttr stringsAttr) {
         for (auto [i, attr] : llvm::enumerate(stringsAttr)) {
@@ -91,18 +93,27 @@ struct SerializationContext {
 
     template <typename Source, typename Builder>
     void serializeMetadata(Source& source, Builder builder) {
-        mlir::ArrayAttr metadata = mlir::jeff::getMetadata(source);
-        if (!metadata) {
+        if (mlir::failed(result)) {
             return;
         }
-        for (auto entry : metadata) {
+        mlir::FailureOr<mlir::ArrayAttr> metadata = mlir::jeff::getMetadata(source);
+        if (mlir::failed(metadata)) {
+            result = mlir::failure();
+            return;
+        }
+        if (!*metadata) {
+            return;
+        }
+        for (auto entry : *metadata) {
             auto name =
                 llvm::cast<mlir::DictionaryAttr>(entry).getAs<mlir::StringAttr>("name").getValue();
             if (stringIds.try_emplace(name, static_cast<uint16_t>(strings.size())).second) {
                 strings.push_back(name);
             }
         }
-        mlir::jeff::serializeMetadata(metadata, builder.initMetadata(metadata.size()), stringIds);
+        result =
+            mlir::jeff::serializeMetadata(mlir::UnknownLoc::get(metadata->getContext()), *metadata,
+                                          builder.initMetadata(metadata->size()), stringIds);
     }
 };
 
@@ -1597,9 +1608,7 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
     }
 }
 
-} // namespace
-
-void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
+mlir::LogicalResult serializeModule(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
     auto stringsAttr = llvm::cast<mlir::ArrayAttr>(moduleOp->getAttr("jeff.strings"));
     SerializationContext ctx(stringsAttr);
 
@@ -1648,24 +1657,25 @@ void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
     for (auto [i, str] : llvm::enumerate(ctx.strings)) {
         stringsBuilder.set(i, str.str());
     }
-}
-
-namespace {
-
-mlir::LogicalResult writeMessage(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
-    auto exception = kj::runCatchingExceptions([&] { serialize(moduleOp, message); });
-    KJ_IF_MAYBE (error, exception) {
-        moduleOp.emitError() << "Failed to serialize jeff: " << error->getDescription().cStr();
-        return mlir::failure();
-    }
-    return mlir::success();
+    return ctx.result;
 }
 
 } // namespace
 
+mlir::LogicalResult serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
+    auto result = mlir::success();
+    auto exception =
+        kj::runCatchingExceptions([&] { result = serializeModule(moduleOp, message); });
+    KJ_IF_MAYBE (error, exception) {
+        moduleOp.emitError() << "Failed to serialize jeff: " << error->getDescription().cStr();
+        return mlir::failure();
+    }
+    return result;
+}
+
 kj::Array<capnp::word> serialize(mlir::ModuleOp moduleOp) {
     capnp::MallocMessageBuilder message;
-    if (mlir::failed(writeMessage(moduleOp, message))) {
+    if (mlir::failed(serialize(moduleOp, message))) {
         return {};
     }
     return capnp::messageToFlatArray(message);
@@ -1673,7 +1683,7 @@ kj::Array<capnp::word> serialize(mlir::ModuleOp moduleOp) {
 
 mlir::LogicalResult serializeToFile(mlir::ModuleOp moduleOp, llvm::StringRef path) {
     capnp::MallocMessageBuilder message;
-    if (mlir::failed(writeMessage(moduleOp, message))) {
+    if (mlir::failed(serialize(moduleOp, message))) {
         return mlir::failure();
     }
 

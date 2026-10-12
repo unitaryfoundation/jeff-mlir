@@ -235,7 +235,7 @@ TEST(MessageExchangeTest, OwnsImportedIR) {
         mlir::OwningOpRef<mlir::ModuleOp> imported;
         {
             capnp::MallocMessageBuilder message(1, capnp::AllocationStrategy::FIXED_SIZE);
-            serialize(*original, message);
+            ASSERT_TRUE(mlir::succeeded(serialize(*original, message)));
             ASSERT_GT(message.getSegmentsForOutput().size(), 1U);
             if (segmented) {
                 capnp::SegmentArrayMessageReader reader(message.getSegmentsForOutput());

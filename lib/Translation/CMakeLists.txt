@@ -26,3 +26,8 @@ target_include_directories(
     MLIRJeffTranslation PUBLIC ${jeff_SOURCE_DIR}/impl/cpp/src/capnp
                                ${jeff_BINARY_DIR}/impl/cpp/src/capnp
 )
+
+if(MSVC)
+    # LLVM's __has_feature fallback makes KJ misdetect MSVC exception support.
+    target_compile_definitions(MLIRJeffTranslation PUBLIC KJ_NO_EXCEPTIONS=0)
+endif()

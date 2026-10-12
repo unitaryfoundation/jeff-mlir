@@ -20,6 +20,7 @@
 #include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Diagnostics.h>
+#include <mlir/IR/Location.h>
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/OpDefinition.h>
 #include <mlir/IR/Operation.h>
@@ -35,6 +36,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -75,14 +77,22 @@ class MetadataTest : public ::testing::Test {
                                                        &context);
     }
 
+    template <typename Owner> mlir::ArrayAttr getMetadata(Owner&& owner) {
+        auto metadata = mlir::jeff::getMetadata(std::forward<Owner>(owner));
+        EXPECT_TRUE(mlir::succeeded(metadata));
+        return mlir::failed(metadata) ? mlir::ArrayAttr{} : *metadata;
+    }
+
     mlir::ArrayAttr textMetadata(llvm::StringRef name) {
         capnp::MallocMessageBuilder message;
         auto entry = message.initRoot<capnp::List<jeff::Meta>>(1)[0];
         entry.setName(0);
         entry.getValue().setAs<capnp::Text>(name.str());
         const std::array<std::string, 1> names{"mqt.input_name"};
-        return mlir::jeff::deserializeMetadata(&context, message.getRoot<capnp::List<jeff::Meta>>(),
-                                               names);
+        auto metadata = mlir::jeff::deserializeMetadata(
+            mlir::UnknownLoc::get(&context), message.getRoot<capnp::List<jeff::Meta>>(), names);
+        EXPECT_TRUE(mlir::succeeded(metadata));
+        return mlir::failed(metadata) ? mlir::ArrayAttr{} : *metadata;
     }
 
     mlir::ArrayAttr payloadMetadata(llvm::ArrayRef<int8_t> bytes) {
@@ -121,7 +131,10 @@ class MetadataTest : public ::testing::Test {
         structure.getValue().setAs<capnp::Text>("nested");
         entries[5].setName(0);
         entries[5].getValue().setAs<capnp::Text>("duplicate key");
-        return mlir::jeff::deserializeMetadata(&context, entries.asReader(), names);
+        auto metadata = mlir::jeff::deserializeMetadata(mlir::UnknownLoc::get(&context),
+                                                        entries.asReader(), names);
+        EXPECT_TRUE(mlir::succeeded(metadata));
+        return mlir::failed(metadata) ? mlir::ArrayAttr{} : *metadata;
     }
 };
 
@@ -134,16 +147,16 @@ TEST_F(MetadataTest, PreservesAllAttachmentPointsAndOpaquePayloads) {
     auto strings = (*original)->getAttr("jeff.strings");
     original->walk([&](mlir::Operation* operation) {
         if (!operation->hasTrait<mlir::OpTrait::IsTerminator>()) {
-            mlir::jeff::setMetadata(operation, metadata);
+            ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(operation, metadata)));
         }
         for (auto result : operation->getResults()) {
-            mlir::jeff::setMetadata(result, metadata);
+            ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(result, metadata)));
         }
         if (!llvm::isa<mlir::ModuleOp>(operation)) {
             for (auto& region : operation->getRegions()) {
-                mlir::jeff::setMetadata(region, metadata);
+                ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(region, metadata)));
                 for (auto argument : region.getArguments()) {
-                    mlir::jeff::setMetadata(argument, metadata);
+                    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(argument, metadata)));
                 }
             }
         }
@@ -156,16 +169,16 @@ TEST_F(MetadataTest, PreservesAllAttachmentPointsAndOpaquePayloads) {
     EXPECT_TRUE(mlir::succeeded(mlir::verify(*decoded)));
     decoded->walk([&](mlir::Operation* operation) {
         if (!operation->hasTrait<mlir::OpTrait::IsTerminator>()) {
-            EXPECT_EQ(mlir::jeff::getMetadata(operation), metadata);
+            EXPECT_EQ(getMetadata(operation), metadata);
         }
         for (auto result : operation->getResults()) {
-            EXPECT_EQ(mlir::jeff::getMetadata(result), metadata);
+            EXPECT_EQ(getMetadata(result), metadata);
         }
         if (!llvm::isa<mlir::ModuleOp>(operation)) {
             for (auto& region : operation->getRegions()) {
-                EXPECT_EQ(mlir::jeff::getMetadata(region), metadata);
+                EXPECT_EQ(getMetadata(region), metadata);
                 for (auto argument : region.getArguments()) {
-                    EXPECT_EQ(mlir::jeff::getMetadata(argument), metadata);
+                    EXPECT_EQ(getMetadata(argument), metadata);
                 }
             }
         }
@@ -200,9 +213,10 @@ TEST_F(MetadataTest, PreservesStringTableIndicesWhenAddingMetadataNames) {
     auto stringsAttr = builder.getStrArrayAttr(originalStrings);
     (*moduleOp)->setAttr("jeff.strings", stringsAttr);
     auto metadata = arbitraryMetadata();
-    mlir::jeff::setMetadata(*moduleOp, metadata);
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(*moduleOp, metadata)));
     auto function = *moduleOp->getOps<mlir::func::FuncOp>().begin();
-    mlir::jeff::setMetadata(function.getArgument(0), textMetadata("theta"));
+    ASSERT_TRUE(
+        mlir::succeeded(mlir::jeff::setMetadata(function.getArgument(0), textMetadata("theta"))));
 
     auto words = serialize(*moduleOp);
     ASSERT_GT(words.size(), 0);
@@ -250,9 +264,9 @@ TEST_F(MetadataTest, ReadsInputMetadataBySourceIndex) {
     auto decoded = deserialize(&context, words);
     ASSERT_TRUE(decoded);
     auto function = *decoded->getOps<mlir::func::FuncOp>().begin();
-    EXPECT_FALSE(mlir::jeff::getMetadata(function.getArgument(0)));
-    EXPECT_EQ(mlir::jeff::getMetadata(function.getArgument(1)), textMetadata("theta"));
-    EXPECT_EQ(mlir::jeff::getMetadata(function.getArgument(2)), textMetadata("phi"));
+    EXPECT_FALSE(getMetadata(function.getArgument(0)));
+    EXPECT_EQ(getMetadata(function.getArgument(1)), textMetadata("theta"));
+    EXPECT_EQ(getMetadata(function.getArgument(2)), textMetadata("phi"));
     EXPECT_FALSE(function.getArgAttr(1, "jeff.input_name"));
 
     auto reserialized = serialize(*decoded);
@@ -276,34 +290,36 @@ TEST_F(MetadataTest, ReplacesAndClearsMetadata) {
     auto function = *moduleOp->getOps<mlir::func::FuncOp>().begin();
     auto theta = function.getArgument(0);
     auto phi = function.getArgument(1);
-    mlir::jeff::setMetadata(theta, textMetadata("theta"));
-    mlir::jeff::setMetadata(phi, textMetadata("phi"));
-    mlir::jeff::setMetadata(theta, textMetadata("new_theta"));
-    mlir::jeff::setMetadata(phi, {});
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(theta, textMetadata("theta"))));
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(phi, textMetadata("phi"))));
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(theta, textMetadata("new_theta"))));
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(phi, {})));
     auto& region = function.getBody();
     auto& operation = region.front().front();
-    mlir::jeff::setMetadata(&operation, textMetadata("operation"));
-    mlir::jeff::setMetadata(&operation, {});
-    mlir::jeff::setMetadata(region, textMetadata("region"));
-    mlir::jeff::setMetadata(region, {});
-    mlir::jeff::setMetadata(operation.getResult(0), textMetadata("result"));
-    mlir::jeff::setMetadata(operation.getResult(0), {});
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(&operation, textMetadata("operation"))));
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(&operation, {})));
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(region, textMetadata("region"))));
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(region, {})));
+    ASSERT_TRUE(
+        mlir::succeeded(mlir::jeff::setMetadata(operation.getResult(0), textMetadata("result"))));
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(operation.getResult(0), {})));
     auto& nested = operation.getRegion(0);
-    mlir::jeff::setMetadata(nested.getArgument(0), textMetadata("argument"));
-    mlir::jeff::setMetadata(nested.getArgument(0), {});
+    ASSERT_TRUE(
+        mlir::succeeded(mlir::jeff::setMetadata(nested.getArgument(0), textMetadata("argument"))));
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(nested.getArgument(0), {})));
 
     auto words = serialize(*moduleOp);
     ASSERT_GT(words.size(), 0);
     auto decoded = deserialize(&context, words);
     ASSERT_TRUE(decoded);
     auto restored = *decoded->getOps<mlir::func::FuncOp>().begin();
-    EXPECT_EQ(mlir::jeff::getMetadata(restored.getArgument(0)), textMetadata("new_theta"));
-    EXPECT_FALSE(mlir::jeff::getMetadata(restored.getArgument(1)));
-    EXPECT_FALSE(mlir::jeff::getMetadata(restored.getBody()));
+    EXPECT_EQ(getMetadata(restored.getArgument(0)), textMetadata("new_theta"));
+    EXPECT_FALSE(getMetadata(restored.getArgument(1)));
+    EXPECT_FALSE(getMetadata(restored.getBody()));
     auto& restoredOperation = restored.getBody().front().front();
-    EXPECT_FALSE(mlir::jeff::getMetadata(&restoredOperation));
-    EXPECT_FALSE(mlir::jeff::getMetadata(restoredOperation.getResult(0)));
-    EXPECT_FALSE(mlir::jeff::getMetadata(restoredOperation.getRegion(0).getArgument(0)));
+    EXPECT_FALSE(getMetadata(&restoredOperation));
+    EXPECT_FALSE(getMetadata(restoredOperation.getResult(0)));
+    EXPECT_FALSE(getMetadata(restoredOperation.getRegion(0).getArgument(0)));
 }
 
 TEST_F(MetadataTest, DiagnosesMalformedPayloadsAndContinuesSerializing) {
@@ -318,12 +334,14 @@ TEST_F(MetadataTest, DiagnosesMalformedPayloadsAndContinuesSerializing) {
     for (unsigned size : {0U, 1U, 8U}) {
         SCOPED_TRACE(size);
         llvm::SmallVector<int8_t> bytes(size, 0);
-        mlir::jeff::setMetadata(function.getArgument(0), payloadMetadata(bytes));
+        ASSERT_TRUE(mlir::succeeded(
+            mlir::jeff::setMetadata(function.getArgument(0), payloadMetadata(bytes))));
         diagnostic.clear();
         EXPECT_EQ(serialize(*moduleOp).size(), 0);
-        EXPECT_NE(diagnostic.find("Failed to serialize jeff"), std::string::npos) << diagnostic;
+        EXPECT_FALSE(diagnostic.empty());
     }
-    mlir::jeff::setMetadata(function.getArgument(0), textMetadata("theta"));
+    ASSERT_TRUE(
+        mlir::succeeded(mlir::jeff::setMetadata(function.getArgument(0), textMetadata("theta"))));
     auto words = serialize(*moduleOp);
     EXPECT_GT(words.size(), 0);
     EXPECT_TRUE(deserialize(&context, words));
@@ -339,6 +357,7 @@ TEST_F(MetadataTest, DiagnosesInvalidStorage) {
         return mlir::success();
     });
     function->setAttr("jeff.metadata", mlir::StringAttr::get(&context, "wrong type"));
+    EXPECT_TRUE(mlir::failed(mlir::jeff::getMetadata(function.getOperation())));
     EXPECT_EQ(serialize(*moduleOp).size(), 0);
     EXPECT_NE(diagnostic.find("Metadata storage must be an array"), std::string::npos);
     function->removeAttr("jeff.metadata");
@@ -346,7 +365,14 @@ TEST_F(MetadataTest, DiagnosesInvalidStorage) {
     function->setAttr("jeff.result_metadata",
                       mlir::ArrayAttr::get(&context, {textMetadata("extra")}));
     EXPECT_EQ(serialize(*moduleOp).size(), 0);
+    EXPECT_TRUE(mlir::failed(mlir::jeff::getMetadata(function.getOperation())));
     function->removeAttr("jeff.result_metadata");
+
+    auto metadata = getMetadata(function.getOperation());
+    EXPECT_TRUE(mlir::failed(mlir::jeff::setMetadata(
+        function.getOperation(),
+        mlir::ArrayAttr::get(&context, {mlir::StringAttr::get(&context, "invalid")}))));
+    EXPECT_EQ(getMetadata(function.getOperation()), metadata);
 }
 
 TEST_F(MetadataTest, RejectsInvalidNamesAtEveryAttachmentPoint) {
@@ -386,7 +412,7 @@ TEST_F(MetadataTest, RejectsInvalidNamesAtEveryAttachmentPoint) {
 TEST_F(MetadataTest, InvalidPayloadDoesNotTruncateOutputFile) {
     auto moduleOp = makeModule();
     ASSERT_TRUE(moduleOp);
-    mlir::jeff::setMetadata(*moduleOp, payloadMetadata({1}));
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(*moduleOp, payloadMetadata({1}))));
     const auto path = std::filesystem::path(::testing::TempDir()) / "invalid_metadata_output.jeff";
     std::ofstream(path) << "previous contents";
     EXPECT_TRUE(mlir::failed(serializeToFile(*moduleOp, path.string())));
@@ -402,21 +428,22 @@ TEST_F(MetadataTest, PreservesMetadataThroughDirectMessageExchange) {
     auto original = makeModule();
     ASSERT_TRUE(original);
     auto metadata = arbitraryMetadata();
-    mlir::jeff::setMetadata(*original, metadata);
+    ASSERT_TRUE(mlir::succeeded(mlir::jeff::setMetadata(*original, metadata)));
     auto function = *original->getOps<mlir::func::FuncOp>().begin();
-    mlir::jeff::setMetadata(function.getArgument(0), textMetadata("theta"));
+    ASSERT_TRUE(
+        mlir::succeeded(mlir::jeff::setMetadata(function.getArgument(0), textMetadata("theta"))));
 
     mlir::OwningOpRef<mlir::ModuleOp> decoded;
     {
         capnp::MallocMessageBuilder message(1, capnp::AllocationStrategy::FIXED_SIZE);
-        serialize(*original, message);
+        ASSERT_TRUE(mlir::succeeded(serialize(*original, message)));
         capnp::SegmentArrayMessageReader reader(message.getSegmentsForOutput());
         decoded = deserialize(&context, reader.getRoot<jeff::Module>());
     }
     ASSERT_TRUE(decoded);
-    EXPECT_EQ(mlir::jeff::getMetadata(*decoded), metadata);
+    EXPECT_EQ(getMetadata(*decoded), metadata);
     auto decodedFunction = *decoded->getOps<mlir::func::FuncOp>().begin();
-    EXPECT_EQ(mlir::jeff::getMetadata(decodedFunction.getArgument(0)), textMetadata("theta"));
+    EXPECT_EQ(getMetadata(decodedFunction.getArgument(0)), textMetadata("theta"));
     auto words = serialize(*decoded);
     EXPECT_GT(words.size(), 0);
 }

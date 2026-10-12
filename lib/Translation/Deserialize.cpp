@@ -31,6 +31,7 @@
 #include <mlir/IR/OwningOpRef.h>
 #include <mlir/IR/Value.h>
 #include <mlir/IR/Verifier.h>
+#include <mlir/Support/LLVM.h>
 
 #include <cassert>
 #include <cstddef>
@@ -38,6 +39,7 @@
 #include <iterator>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace {
 
@@ -46,6 +48,21 @@ struct DeserializationContext {
     capnp::List<jeff::Value>::Reader jeffValues;
     llvm::DenseMap<uint16_t, mlir::func::FuncOp> funcs;
     llvm::SmallVector<std::string> strings;
+    mlir::LogicalResult result = mlir::success();
+
+    template <typename Owner>
+    void deserializeMetadata(Owner&& owner, capnp::List<jeff::Meta>::Reader metadata,
+                             mlir::Location location) {
+        if (mlir::failed(result)) {
+            return;
+        }
+        auto entries = mlir::jeff::deserializeMetadata(location, metadata, strings);
+        if (mlir::failed(entries)) {
+            result = mlir::failure();
+            return;
+        }
+        result = mlir::jeff::setMetadata(std::forward<Owner>(owner), *entries);
+    }
 
     mlir::Value getValue(uint32_t id) {
         auto it = values.find(id);
@@ -63,9 +80,7 @@ struct DeserializationContext {
         }
         KJ_REQUIRE(id < jeffValues.size(), "Value index out of bounds") {}
         values[id] = value;
-        mlir::jeff::setMetadata(value, mlir::jeff::deserializeMetadata(value.getContext(),
-                                                                       jeffValues[id].getMetadata(),
-                                                                       strings));
+        deserializeMetadata(value, jeffValues[id].getMetadata(), value.getLoc());
     }
 
     mlir::func::FuncOp getFunc(uint16_t id) {
@@ -1220,9 +1235,7 @@ void deserializeBlock(mlir::ImplicitLocOpBuilder& builder, mlir::Block& block,
 
     mlir::jeff::YieldOp::create(builder, targetValues);
 
-    mlir::jeff::setMetadata(
-        *block.getParent(),
-        mlir::jeff::deserializeMetadata(builder.getContext(), region.getMetadata(), ctx.strings));
+    ctx.deserializeMetadata(*block.getParent(), region.getMetadata(), builder.getLoc());
 }
 
 void deserializeSwitch(mlir::ImplicitLocOpBuilder& builder, const jeff::Op::Reader& operation,
@@ -1509,9 +1522,7 @@ auto deserializeOperations(mlir::ImplicitLocOpBuilder& builder,
         }
 
         auto& created = *std::prev(builder.getInsertionPoint());
-        mlir::jeff::setMetadata(&created, mlir::jeff::deserializeMetadata(builder.getContext(),
-                                                                          operation.getMetadata(),
-                                                                          ctx.strings));
+        ctx.deserializeMetadata(&created, operation.getMetadata(), builder.getLoc());
     }
 }
 
@@ -1558,8 +1569,7 @@ void deserializeFunctionSignature(mlir::ImplicitLocOpBuilder& builder,
     auto func = mlir::func::FuncOp::create(builder, funcName, funcType);
     ctx.setFunc(functionId, func);
 
-    mlir::jeff::setMetadata(func, mlir::jeff::deserializeMetadata(
-                                      builder.getContext(), function.getMetadata(), ctx.strings));
+    ctx.deserializeMetadata(func, function.getMetadata(), builder.getLoc());
 }
 
 void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
@@ -1595,9 +1605,7 @@ void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
     // Create return statement
     mlir::func::ReturnOp::create(builder, results);
 
-    mlir::jeff::setMetadata(
-        func.getBody(),
-        mlir::jeff::deserializeMetadata(builder.getContext(), body.getMetadata(), ctx.strings));
+    ctx.deserializeMetadata(func.getBody(), body.getMetadata(), builder.getLoc());
 }
 
 mlir::OwningOpRef<mlir::ModuleOp> deserializeModule(mlir::MLIRContext* context,
@@ -1639,9 +1647,10 @@ mlir::OwningOpRef<mlir::ModuleOp> deserializeModule(mlir::MLIRContext* context,
     }
 
     // Set metadata
-    mlir::jeff::setMetadata(mlirModule,
-                            mlir::jeff::deserializeMetadata(builder.getContext(),
-                                                            jeffModule.getMetadata(), ctx.strings));
+    ctx.deserializeMetadata(mlirModule, jeffModule.getMetadata(), builder.getLoc());
+    if (mlir::failed(ctx.result)) {
+        return {};
+    }
 
     auto uint16Type = builder.getIntegerType(16, false);
 
