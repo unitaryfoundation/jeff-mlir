@@ -35,8 +35,9 @@ auto withCapnpDiagnostics(Location location, llvm::StringRef action, Callback ca
     Result result = failure();
     auto exception = kj::runCatchingExceptions([&] { result = callback(); });
     KJ_IF_MAYBE (error, exception) {
-        return Result(emitError(location)
-                      << "Failed to " << action << " metadata: " << error->getDescription().cStr());
+        emitError(location) << "Failed to " << action
+                            << " metadata: " << error->getDescription().cStr();
+        return Result(failure());
     }
     return result;
 }
