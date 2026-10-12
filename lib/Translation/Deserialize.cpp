@@ -1581,8 +1581,7 @@ void deserializeFunctionBody(mlir::ImplicitLocOpBuilder& builder,
     builder.setInsertionPointToStart(&entryBlock);
 
     for (auto i = 0; i < sources.size(); ++i) {
-        const auto source = sources[i];
-        ctx.setValue(source, entryBlock.getArgument(i));
+        ctx.setValue(sources[i], entryBlock.getArgument(i));
     }
 
     deserializeOperations(builder, operations, ctx);
