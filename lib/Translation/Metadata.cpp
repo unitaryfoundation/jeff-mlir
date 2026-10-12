@@ -19,7 +19,6 @@
 #include <mlir/IR/Operation.h>
 #include <mlir/IR/Value.h>
 
-#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
