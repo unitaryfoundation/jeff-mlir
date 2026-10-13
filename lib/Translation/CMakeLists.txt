@@ -29,5 +29,8 @@ target_include_directories(
 
 if(MSVC)
     # LLVM's __has_feature fallback makes KJ misdetect MSVC exception support.
-    target_compile_definitions(MLIRJeffTranslation PUBLIC KJ_NO_EXCEPTIONS=0)
+    target_compile_definitions(MLIRJeffTranslation PRIVATE KJ_NO_EXCEPTIONS=0)
+    if(TARGET obj.MLIRJeffTranslation)
+        target_compile_definitions(obj.MLIRJeffTranslation PRIVATE KJ_NO_EXCEPTIONS=0)
+    endif()
 endif()
