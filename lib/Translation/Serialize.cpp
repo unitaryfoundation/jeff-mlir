@@ -55,6 +55,31 @@ struct SerializationContext {
     llvm::SmallVector<llvm::StringRef> strings;
     mlir::LogicalResult result = mlir::success();
 
+    template <typename Source, typename Builder>
+    void serializeMetadata(Source& source, Builder builder) {
+        if (mlir::failed(result)) {
+            return;
+        }
+        mlir::FailureOr<mlir::ArrayAttr> metadata = mlir::jeff::getMetadata(source);
+        if (mlir::failed(metadata)) {
+            result = mlir::failure();
+            return;
+        }
+        if (!*metadata) {
+            return;
+        }
+        for (auto entry : *metadata) {
+            auto name =
+                llvm::cast<mlir::DictionaryAttr>(entry).getAs<mlir::StringAttr>("name").getValue();
+            if (stringIds.try_emplace(name, static_cast<uint16_t>(strings.size())).second) {
+                strings.push_back(name);
+            }
+        }
+        result =
+            mlir::jeff::serializeMetadata(mlir::UnknownLoc::get(metadata->getContext()), *metadata,
+                                          builder.initMetadata(metadata->size()), stringIds);
+    }
+
     explicit SerializationContext(mlir::ArrayAttr stringsAttr) {
         for (auto [i, attr] : llvm::enumerate(stringsAttr)) {
             auto str = llvm::cast<mlir::StringAttr>(attr).getValue();
@@ -89,31 +114,6 @@ struct SerializationContext {
             llvm::report_fatal_error("String not found");
         }
         return it->second;
-    }
-
-    template <typename Source, typename Builder>
-    void serializeMetadata(Source& source, Builder builder) {
-        if (mlir::failed(result)) {
-            return;
-        }
-        mlir::FailureOr<mlir::ArrayAttr> metadata = mlir::jeff::getMetadata(source);
-        if (mlir::failed(metadata)) {
-            result = mlir::failure();
-            return;
-        }
-        if (!*metadata) {
-            return;
-        }
-        for (auto entry : *metadata) {
-            auto name =
-                llvm::cast<mlir::DictionaryAttr>(entry).getAs<mlir::StringAttr>("name").getValue();
-            if (stringIds.try_emplace(name, static_cast<uint16_t>(strings.size())).second) {
-                strings.push_back(name);
-            }
-        }
-        result =
-            mlir::jeff::serializeMetadata(mlir::UnknownLoc::get(metadata->getContext()), *metadata,
-                                          builder.initMetadata(metadata->size()), stringIds);
     }
 };
 

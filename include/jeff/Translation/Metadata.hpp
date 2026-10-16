@@ -22,7 +22,7 @@ namespace mlir::jeff {
  *
  * Entries are dictionaries with a string `name` and a dense i8 array `value` holding a
  * complete Cap'n Proto message with an `AnyPointer` root. Missing metadata yields a null
- * attribute; invalid storage is diagnosed and yields failure.
+ * attribute. Invalid storage is diagnosed and yields failure.
  */
 FailureOr<ArrayAttr> getMetadata(Operation* operation);
 FailureOr<ArrayAttr> getMetadata(Region& region);
@@ -50,7 +50,7 @@ FailureOr<ArrayAttr> deserializeMetadata(Location location,
 /**
  * @brief Serialize metadata entries without interpreting their keys or payload schemas.
  *
- * Invalid metadata is diagnosed and yields failure. Discard the builder on failure;
+ * Invalid metadata is diagnosed and yields failure. Discard the builder on failure.
  * Cap'n Proto errors do not escape as exceptions.
  */
 LogicalResult serializeMetadata(Location location, ArrayAttr metadata,

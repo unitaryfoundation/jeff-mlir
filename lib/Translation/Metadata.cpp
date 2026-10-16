@@ -22,11 +22,13 @@
 #include <mlir/IR/Value.h>
 #include <mlir/Support/LLVM.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
 
 namespace mlir::jeff {
+
 namespace {
 
 template <typename Callback>
@@ -50,7 +52,7 @@ FailureOr<ArrayAttr> getArray(Operation* operation, llvm::StringRef name) {
     return llvm::dyn_cast_or_null<ArrayAttr>(attribute);
 }
 
-FailureOr<ArrayAttr> getElement(Location location, ArrayAttr array, unsigned index, unsigned size) {
+FailureOr<ArrayAttr> getElement(Location location, ArrayAttr array, size_t index, size_t size) {
     if (!array || array.empty()) {
         return ArrayAttr{};
     }
@@ -64,8 +66,8 @@ FailureOr<ArrayAttr> getElement(Location location, ArrayAttr array, unsigned ind
     return element;
 }
 
-FailureOr<ArrayAttr> replaceElement(Location location, ArrayAttr array, unsigned index,
-                                    unsigned size, ArrayAttr element) {
+FailureOr<ArrayAttr> replaceElement(Location location, ArrayAttr array, size_t index, size_t size,
+                                    ArrayAttr element) {
     llvm::SmallVector<Attribute> elements(size, ArrayAttr::get(location.getContext(), {}));
     if (array && !array.empty()) {
         if (array.size() != size) {
@@ -360,7 +362,7 @@ LogicalResult serializeMetadata(Location location, ArrayAttr metadata,
         return emitError(location, "Metadata builder size does not match its entries");
     }
     return withCapnpDiagnostics(location, "serialize", [&]() -> LogicalResult {
-        for (unsigned i = 0; i < metadata.size(); ++i) {
+        for (size_t i = 0; i < metadata.size(); ++i) {
             auto fields = llvm::cast<DictionaryAttr>(metadata[i]);
             auto name = fields.getAs<StringAttr>("name").getValue();
             auto string = strings.find(name);

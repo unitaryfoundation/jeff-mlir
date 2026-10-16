@@ -11,8 +11,7 @@ The project adheres to
 
 Tools can now exchange their own metadata through `jeff` without losing unknown
 keys or payloads during serialization and deserialization. Metadata is preserved
-on modules, functions, regions, operations, and values using the existing
-format.
+on modules, functions, regions, operations, and values.
 
 ### Add direct Cap'n Proto message exchange
 
