@@ -7,6 +7,12 @@ The project adheres to
 
 ## [Unreleased]
 
+### Preserve arbitrary metadata
+
+Tools can now exchange their own metadata through `jeff` without losing unknown
+keys or payloads during serialization and deserialization. Metadata is preserved
+on modules, functions, regions, operations, and values.
+
 ### Add direct Cap'n Proto message exchange
 
 New `serialize()` and `deserialize()` overloads let callers serialize into a
