@@ -19,6 +19,13 @@ New `serialize()` and `deserialize()` overloads let callers serialize into a
 caller-owned `capnp::MessageBuilder` and deserialize an existing
 `jeff::Module::Reader` without flattening the message.
 
+### Allow type conversion for array constants
+
+`populateNativeToJeffConversionPatterns()` accepts an optional type converter
+for array constants, allowing callers to flatten tensors and zero-extend narrow
+integers to jeff widths while preserving element order. Other operations retain
+their existing conversion behavior.
+
 ## [0.4.0] - 2026-09-11
 
 This release is compatible with `jeff-v0.3.1`.

@@ -19,7 +19,7 @@ if(NOT TARGET ${test_name})
 
     target_link_libraries(
         ${test_name} PRIVATE GTest::gtest_main MLIRJeff MLIRJeffToNative MLIRJeffTranslation
-                             MLIRNativeToJeff
+                             MLIRNativeToJeff MLIRParser
     )
 
     target_compile_definitions(
