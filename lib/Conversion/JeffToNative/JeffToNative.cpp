@@ -2,6 +2,7 @@
 
 #include "jeff/IR/JeffOps.h"
 
+#include <llvm/ADT/SmallVector.h>
 #include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Math/IR/Math.h>
 #include <mlir/Dialect/Tensor/IR/Tensor.h>
@@ -10,6 +11,7 @@
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/OperationSupport.h>
 #include <mlir/IR/PatternMatch.h>
+#include <mlir/IR/Value.h>
 #include <mlir/Support/LogicalResult.h>
 #include <mlir/Transforms/DialectConversion.h>
 
@@ -386,10 +388,15 @@ template <typename JeffOp> struct ConvertJeffArrayZeroOp final : OpConversionPat
 
     LogicalResult matchAndRewrite(JeffOp op, typename JeffOp::Adaptor adaptor,
                                   ConversionPatternRewriter& rewriter) const override {
-        auto length = adaptor.getLength();
-        auto lengthIndex =
-            arith::IndexCastOp::create(rewriter, op.getLoc(), rewriter.getIndexType(), length);
-        rewriter.replaceOpWithNewOp<tensor::EmptyOp>(op, op.getType(), lengthIndex.getResult());
+        auto type = op.getType();
+        auto zero = arith::ConstantOp::create(rewriter, op.getLoc(),
+                                              rewriter.getZeroAttr(type.getElementType()));
+        llvm::SmallVector<Value> dynamicSizes;
+        if (!type.hasStaticShape()) {
+            dynamicSizes.push_back(arith::IndexCastOp::create(
+                rewriter, op.getLoc(), rewriter.getIndexType(), adaptor.getLength()));
+        }
+        rewriter.replaceOpWithNewOp<tensor::SplatOp>(op, zero, type, dynamicSizes);
         return success();
     }
 };

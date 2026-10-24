@@ -44,10 +44,14 @@ def register_generator(function: Callable[[], None]) -> Callable[[], None]:
     return function
 
 
-def _create_and_write_module(operations: list[JeffOp], output_filename: str) -> None:
+def _create_and_write_module(
+    operations: list[JeffOp],
+    output_filename: str,
+    targets: list[JeffValue] | None = None,
+) -> None:
     body = JeffRegion(
         sources=[],
-        targets=[],
+        targets=targets or [],
         operations=operations,
     )
     function = FunctionDef(name="main", body=body)
@@ -956,17 +960,7 @@ def generate_int_array_const1() -> None:
         "intArray", "const1", [], [JeffValue(IntArrayType(1, 3))], [True, False, True]
     )
 
-    body = JeffRegion(
-        sources=[],
-        targets=[const.outputs[0]],
-        operations=[const],
-    )
-    function = FunctionDef(name="main", body=body)
-    jeffModule = JeffModule([function])
-
-    output_file = INPUTS_DIR / "unit_int_array_const1.jeff"
-    output_file.unlink(missing_ok=True)
-    jeffModule.write_out(output_file)
+    _create_and_write_module([const], "unit_int_array_const1.jeff", const.outputs)
 
 
 @register_generator
@@ -980,17 +974,9 @@ def generate_int_array_const() -> None:
             [1, 2, 3],
         )
 
-        body = JeffRegion(
-            sources=[],
-            targets=[const.outputs[0]],
-            operations=[const],
+        _create_and_write_module(
+            [const], f"unit_int_array_const{bit_width}.jeff", const.outputs
         )
-        function = FunctionDef(name="main", body=body)
-        jeffModule = JeffModule([function])
-
-        output_file = INPUTS_DIR / f"unit_int_array_const{bit_width}.jeff"
-        output_file.unlink(missing_ok=True)
-        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1003,7 +989,7 @@ def generate_int_array_zero() -> None:
         [JeffValue(IntArrayType(32))],
         32,
     )
-    _create_and_write_module([length, zero], "unit_int_array_zero.jeff")
+    _create_and_write_module([length, zero], "unit_int_array_zero.jeff", zero.outputs)
 
 
 @register_generator
@@ -1519,17 +1505,9 @@ def generate_float_array_const() -> None:
             [0.1, 0.2, 0.3],
         )
 
-        body = JeffRegion(
-            sources=[],
-            targets=[const.outputs[0]],
-            operations=[const],
+        _create_and_write_module(
+            [const], f"unit_float_array_const{bit_width}.jeff", const.outputs
         )
-        function = FunctionDef(name="main", body=body)
-        jeffModule = JeffModule([function])
-
-        output_file = INPUTS_DIR / f"unit_float_array_const{bit_width}.jeff"
-        output_file.unlink(missing_ok=True)
-        jeffModule.write_out(output_file)
 
 
 @register_generator
@@ -1542,7 +1520,7 @@ def generate_float_array_zero() -> None:
         [JeffValue(FloatArrayType(32))],
         schema.FloatPrecision.float32,
     )
-    _create_and_write_module([length, zero], "unit_float_array_zero.jeff")
+    _create_and_write_module([length, zero], "unit_float_array_zero.jeff", zero.outputs)
 
 
 @register_generator

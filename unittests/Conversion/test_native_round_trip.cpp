@@ -18,6 +18,8 @@
 #include <llvm/Support/raw_ostream.h>
 #include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
+#include <mlir/Dialect/Tensor/IR/Tensor.h>
+#include <mlir/IR/Builders.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/BuiltinTypes.h>
 #include <mlir/IR/MLIRContext.h>
@@ -117,6 +119,48 @@ std::vector<NativeRoundTripTestCase> getTestCases() {
 }
 
 } // namespace
+
+TEST(NativeConversionTest, ZeroArrayValues) {
+    mlir::MLIRContext context;
+    context.loadDialect<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
+    for (const auto* filename : {"unit_int_array_zero.jeff", "unit_float_array_zero.jeff"}) {
+        SCOPED_TRACE(filename);
+        auto module =
+            deserializeFromFile(&context, (fs::path(TEST_INPUTS_DIR) / filename).string());
+        ASSERT_TRUE(module);
+        auto function = module->lookupSymbol<mlir::func::FuncOp>("main");
+        auto result = llvm::cast<mlir::func::ReturnOp>(function.getBody().front().getTerminator());
+        auto value = result.getOperand(0);
+        auto type = llvm::cast<mlir::RankedTensorType>(value.getType());
+        // Exercise static and dynamic result dimensions using the existing fixtures.
+        if (llvm::isa<mlir::IntegerType>(type.getElementType())) {
+            value.setType(mlir::RankedTensorType::get({5}, type.getElementType()));
+        }
+        mlir::OpBuilder builder(value.getDefiningOp());
+        auto duplicate = builder.clone(*value.getDefiningOp())->getResult(0);
+        builder.clone(*value.getDefiningOp()); // An unused zero value.
+        result->setOperands({value, duplicate});
+        function.setType(builder.getFunctionType({}, {value.getType(), value.getType()}));
+        mlir::PassManager pm(&context);
+        pm.addPass(mlir::createCanonicalizerPass());
+        pm.addPass(mlir::createCSEPass());
+        ASSERT_TRUE(pm.run(*module).succeeded());
+        EXPECT_EQ(result.getOperand(0), result.getOperand(1));
+        for (auto& op : function.getBody().front()) {
+            EXPECT_FALSE(op.getNumResults() && op.use_empty());
+        }
+
+        ASSERT_TRUE(convertJeffToNative(*module).succeeded());
+        ASSERT_TRUE(canonicalize(*module).succeeded());
+        auto nativeValue = result.getOperand(0);
+        if (auto splat = nativeValue.getDefiningOp<mlir::tensor::SplatOp>()) {
+            nativeValue = splat.getInput();
+        }
+        auto constant = nativeValue.getDefiningOp<mlir::arith::ConstantOp>();
+        ASSERT_TRUE(constant);
+        EXPECT_EQ(constant.getValue(), builder.getZeroAttr(constant.getType()));
+    }
+}
 
 TEST_P(NativeRoundTripTest, RoundTrip) {
     const auto& testCase = GetParam();
