@@ -15,6 +15,7 @@
 #include <mlir/IR/BuiltinTypeInterfaces.h>
 #include <mlir/IR/BuiltinTypes.h>
 #include <mlir/IR/MLIRContext.h>
+#include <mlir/IR/Matchers.h>
 #include <mlir/IR/OperationSupport.h>
 #include <mlir/IR/PatternMatch.h>
 #include <mlir/IR/Types.h>
@@ -391,6 +392,32 @@ struct ConvertTensorEmptyOp final : OpConversionPattern<tensor::EmptyOp> {
     }
 };
 
+struct ConvertTensorSplatOp final : OpConversionPattern<tensor::SplatOp> {
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult matchAndRewrite(tensor::SplatOp op, OpAdaptor adaptor,
+                                  ConversionPatternRewriter& rewriter) const override {
+        auto sizes = adaptor.getDynamicSizes();
+        if (op.getType().getRank() != 1 || sizes.size() != 1 ||
+            !sizes[0].getType().isSignlessInteger(32)) {
+            return rewriter.notifyMatchFailure(
+                op, "Expected a one-dimensional dynamic tensor with an i32 length");
+        }
+        auto elementType = op.getType().getElementType();
+        if (auto integerType = llvm::dyn_cast<IntegerType>(elementType);
+            integerType && llvm::is_contained({1U, 8U, 16U, 32U, 64U}, integerType.getWidth()) &&
+            matchPattern(op.getInput(), m_Zero())) {
+            rewriter.replaceOpWithNewOp<jeff::IntArrayZeroOp>(op, op.getType(), sizes[0]);
+        } else if ((elementType.isF32() || elementType.isF64()) &&
+                   matchPattern(op.getInput(), m_PosZeroFloat())) {
+            rewriter.replaceOpWithNewOp<jeff::FloatArrayZeroOp>(op, op.getType(), sizes[0]);
+        } else {
+            return rewriter.notifyMatchFailure(op, "Expected a zero splat of a supported type");
+        }
+        return success();
+    }
+};
+
 struct ConvertTensorExtractOp final : OpConversionPattern<tensor::ExtractOp> {
     using OpConversionPattern::OpConversionPattern;
 
@@ -582,8 +609,8 @@ void populateNativeToJeffConversionPatterns(RewritePatternSet& patterns) {
         ConvertArithConversionOp<arith::FPToSIOp, jeff::FloatToSIntOp>,
         ConvertArithConversionOp<arith::FPToUIOp, jeff::FloatToUIntOp>,
         // IntArray/FloatArray operations
-        ConvertTensorEmptyOp, ConvertTensorExtractOp, ConvertTensorInsertOp, ConvertTensorDimOp,
-        ConvertTensorFromElementsOp,
+        ConvertTensorEmptyOp, ConvertTensorSplatOp, ConvertTensorExtractOp, ConvertTensorInsertOp,
+        ConvertTensorDimOp, ConvertTensorFromElementsOp,
         // Cast operations
         ConvertArithIndexCastOp>(patterns.getContext());
 }

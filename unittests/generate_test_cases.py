@@ -1003,7 +1003,11 @@ def generate_int_array_zero() -> None:
         [JeffValue(IntArrayType(32))],
         32,
     )
-    _create_and_write_module([length, zero], "unit_int_array_zero.jeff")
+    body = JeffRegion(sources=[], targets=zero.outputs, operations=[length, zero])
+    module = JeffModule([FunctionDef(name="main", body=body)])
+    output_file = INPUTS_DIR / "unit_int_array_zero.jeff"
+    output_file.unlink(missing_ok=True)
+    module.write_out(output_file)
 
 
 @register_generator
@@ -1542,7 +1546,11 @@ def generate_float_array_zero() -> None:
         [JeffValue(FloatArrayType(32))],
         schema.FloatPrecision.float32,
     )
-    _create_and_write_module([length, zero], "unit_float_array_zero.jeff")
+    body = JeffRegion(sources=[], targets=zero.outputs, operations=[length, zero])
+    module = JeffModule([FunctionDef(name="main", body=body)])
+    output_file = INPUTS_DIR / "unit_float_array_zero.jeff"
+    output_file.unlink(missing_ok=True)
+    module.write_out(output_file)
 
 
 @register_generator

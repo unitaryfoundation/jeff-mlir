@@ -68,6 +68,8 @@ def NativeToJeff : Pass<"native-to-jeff"> {
     - `extract`
     - `from_elements`
     - `insert`
+    - `splat` of zero into a one-dimensional dynamically sized tensor
+      with a length that converts to `i32` (positive zero for floating-point elements)
 
     Known limitations:
 

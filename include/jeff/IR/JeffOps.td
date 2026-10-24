@@ -1639,9 +1639,12 @@ def IntArrayConst64Op : IntArray_Op<"int_array_const64", [Pure]> {
     }];
 }
 
-def IntArrayZeroOp : IntArray_Op<"int_array_zero", []> {
-    let summary = "";
-    let description = [{}];
+def IntArrayZeroOp : IntArray_Op<"int_array_zero", [NoMemoryEffect]> {
+    let summary = "Create an integer array filled with zeros";
+    let description = [{
+        Produces an immutable tensor containing `length` zero values. A static
+        result dimension must agree with `length`.
+    }];
 
     let arguments = (ins
         I32:$length
@@ -1986,9 +1989,12 @@ def FloatArrayConst64Op : FloatArray_Op<"float_array_const64", [Pure]> {
     }];
 }
 
-def FloatArrayZeroOp : FloatArray_Op<"float_array_zero", []> {
-    let summary = "";
-    let description = [{}];
+def FloatArrayZeroOp : FloatArray_Op<"float_array_zero", [NoMemoryEffect]> {
+    let summary = "Create a floating-point array filled with positive zeros";
+    let description = [{
+        Produces an immutable tensor containing `length` positive zero values.
+        A static result dimension must agree with `length`.
+    }];
 
     let arguments = (ins
         I32:$length
