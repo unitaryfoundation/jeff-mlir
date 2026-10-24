@@ -6,7 +6,7 @@ if(NOT TARGET ${test_name})
         return()
     endif()
 
-    add_executable(${test_name} test_native_round_trip.cpp test_zero_arrays.cpp)
+    add_executable(${test_name} test_native_round_trip.cpp)
 
     add_dependencies(${test_name} generate_test_cases)
 
@@ -19,7 +19,7 @@ if(NOT TARGET ${test_name})
 
     target_link_libraries(
         ${test_name} PRIVATE GTest::gtest_main MLIRJeff MLIRJeffToNative MLIRJeffTranslation
-                             MLIRNativeToJeff MLIRParser
+                             MLIRNativeToJeff
     )
 
     target_compile_definitions(

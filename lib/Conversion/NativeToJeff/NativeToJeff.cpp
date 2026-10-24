@@ -24,6 +24,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 #include <utility>
 
 namespace mlir {
@@ -369,33 +370,10 @@ struct ConvertArithConversionOp final : OpConversionPattern<ArithOp> {
 // IntArray/FloatArray operations
 //===----------------------------------------------------------------------===//
 
-struct ConvertTensorEmptyOp final : OpConversionPattern<tensor::EmptyOp> {
-    using OpConversionPattern::OpConversionPattern;
+template <typename TensorOp> struct ConvertTensorZeroOp final : OpConversionPattern<TensorOp> {
+    using OpConversionPattern<TensorOp>::OpConversionPattern;
 
-    LogicalResult matchAndRewrite(tensor::EmptyOp op, OpAdaptor adaptor,
-                                  ConversionPatternRewriter& rewriter) const override {
-        auto sizes = adaptor.getDynamicSizes();
-        if (sizes.size() != 1) {
-            return rewriter.notifyMatchFailure(op, "Only one-dimensional tensors are supported");
-        }
-        return llvm::TypeSwitch<Type, LogicalResult>(op.getType().getElementType())
-            .Case<IntegerType>([&](auto) {
-                rewriter.replaceOpWithNewOp<jeff::IntArrayZeroOp>(op, op.getType(), sizes[0]);
-                return success();
-            })
-            .Case<FloatType>([&](auto) {
-                rewriter.replaceOpWithNewOp<jeff::FloatArrayZeroOp>(op, op.getType(), sizes[0]);
-                return success();
-            })
-            .Default(
-                [&](auto) { return rewriter.notifyMatchFailure(op, "Unsupported element type"); });
-    }
-};
-
-struct ConvertTensorSplatOp final : OpConversionPattern<tensor::SplatOp> {
-    using OpConversionPattern::OpConversionPattern;
-
-    LogicalResult matchAndRewrite(tensor::SplatOp op, OpAdaptor adaptor,
+    LogicalResult matchAndRewrite(TensorOp op, typename TensorOp::Adaptor adaptor,
                                   ConversionPatternRewriter& rewriter) const override {
         auto sizes = adaptor.getDynamicSizes();
         if (op.getType().getRank() != 1 || sizes.size() != 1 ||
@@ -403,16 +381,20 @@ struct ConvertTensorSplatOp final : OpConversionPattern<tensor::SplatOp> {
             return rewriter.notifyMatchFailure(
                 op, "Expected a one-dimensional dynamic tensor with an i32 length");
         }
+        if constexpr (std::is_same_v<TensorOp, tensor::SplatOp>) {
+            if (!matchPattern(op.getInput(), m_Zero()) &&
+                !matchPattern(op.getInput(), m_PosZeroFloat())) {
+                return rewriter.notifyMatchFailure(op, "Expected a zero splat");
+            }
+        }
         auto elementType = op.getType().getElementType();
         if (auto integerType = llvm::dyn_cast<IntegerType>(elementType);
-            integerType && llvm::is_contained({1U, 8U, 16U, 32U, 64U}, integerType.getWidth()) &&
-            matchPattern(op.getInput(), m_Zero())) {
+            integerType && llvm::is_contained({1U, 8U, 16U, 32U, 64U}, integerType.getWidth())) {
             rewriter.replaceOpWithNewOp<jeff::IntArrayZeroOp>(op, op.getType(), sizes[0]);
-        } else if ((elementType.isF32() || elementType.isF64()) &&
-                   matchPattern(op.getInput(), m_PosZeroFloat())) {
+        } else if (elementType.isF32() || elementType.isF64()) {
             rewriter.replaceOpWithNewOp<jeff::FloatArrayZeroOp>(op, op.getType(), sizes[0]);
         } else {
-            return rewriter.notifyMatchFailure(op, "Expected a zero splat of a supported type");
+            return rewriter.notifyMatchFailure(op, "Unsupported element type");
         }
         return success();
     }
@@ -609,8 +591,9 @@ void populateNativeToJeffConversionPatterns(RewritePatternSet& patterns) {
         ConvertArithConversionOp<arith::FPToSIOp, jeff::FloatToSIntOp>,
         ConvertArithConversionOp<arith::FPToUIOp, jeff::FloatToUIntOp>,
         // IntArray/FloatArray operations
-        ConvertTensorEmptyOp, ConvertTensorSplatOp, ConvertTensorExtractOp, ConvertTensorInsertOp,
-        ConvertTensorDimOp, ConvertTensorFromElementsOp,
+        ConvertTensorZeroOp<tensor::EmptyOp>, ConvertTensorZeroOp<tensor::SplatOp>,
+        ConvertTensorExtractOp, ConvertTensorInsertOp, ConvertTensorDimOp,
+        ConvertTensorFromElementsOp,
         // Cast operations
         ConvertArithIndexCastOp>(patterns.getContext());
 }
