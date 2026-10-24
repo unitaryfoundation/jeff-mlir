@@ -7,6 +7,12 @@ The project adheres to
 
 ## [Unreleased]
 
+### Fix zero-array conversion and cleanup
+
+Integer and floating-point zero arrays lower to initialized native tensors and
+declare their lack of memory effects, enabling dead-code elimination and common
+subexpression elimination. Native zero splats also convert back to jeff arrays.
+
 ### Add direct Cap'n Proto message exchange
 
 New `serialize()` and `deserialize()` overloads let callers serialize into a
