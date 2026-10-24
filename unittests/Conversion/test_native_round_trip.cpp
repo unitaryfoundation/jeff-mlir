@@ -29,6 +29,10 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#include <utility>
+#endif
+
 namespace fs = std::filesystem;
 
 namespace {

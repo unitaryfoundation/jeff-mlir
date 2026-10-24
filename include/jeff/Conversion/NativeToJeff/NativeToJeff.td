@@ -68,6 +68,7 @@ def NativeToJeff : Pass<"native-to-jeff"> {
     - `extract`
     - `from_elements`
     - `insert`
+    - `splat`
 
     Known limitations:
 
@@ -75,6 +76,8 @@ def NativeToJeff : Pass<"native-to-jeff"> {
     - `arith.index_cast` operations are removed during conversion.
       This assumes that functions have a `jeff`-compatible signature (e.g., a function must not return an `index`).
       The conversion ensures that the created operations are compatible with each other.
+    - `tensor.splat` only supports zero values in one-dimensional dynamically sized tensors
+      with a length that converts to `i32` (positive zero for floating-point elements).
   }];
 
   let dependentDialects = [
