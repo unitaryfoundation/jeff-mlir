@@ -3,6 +3,7 @@
 #include "jeff/IR/JeffDialect.h"
 #include "jeff/IR/JeffOps.h"
 
+#include <llvm/ADT/APInt.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/TypeSwitch.h>
@@ -18,6 +19,7 @@
 #include <mlir/IR/OperationSupport.h>
 #include <mlir/IR/PatternMatch.h>
 #include <mlir/IR/Types.h>
+#include <mlir/Support/LLVM.h>
 #include <mlir/Support/LogicalResult.h>
 #include <mlir/Transforms/DialectConversion.h>
 
@@ -36,13 +38,40 @@ namespace {
 // Constants
 //===----------------------------------------------------------------------===//
 
+template <typename JeffOp, typename Element>
+void replaceIntegerArrayConstant(arith::ConstantOp op, RankedTensorType type,
+                                 DenseElementsAttr data, ConversionPatternRewriter& rewriter) {
+    SmallVector<Element> values;
+    if (data.getElementType() == type.getElementType()) {
+        auto elements = data.getValues<Element>();
+        values.append(elements.begin(), elements.end());
+    } else {
+        values.reserve(data.getNumElements());
+        const auto width = type.getElementTypeBitWidth();
+        for (const APInt& value : data.getValues<APInt>()) {
+            values.push_back(static_cast<Element>(value.zext(width).getSExtValue()));
+        }
+    }
+    rewriter.replaceOpWithNewOp<JeffOp>(op, type, ArrayRef<Element>(values));
+}
+
 struct ConvertArithConstOp final : OpConversionPattern<arith::ConstantOp> {
     using OpConversionPattern::OpConversionPattern;
 
     LogicalResult matchAndRewrite(arith::ConstantOp op, OpAdaptor /*adaptor*/,
                                   ConversionPatternRewriter& rewriter) const override {
         auto value = op.getValue();
-        return llvm::TypeSwitch<Type, LogicalResult>(op.getType())
+        Type resultType = op.getType();
+        if (const auto* converter = getTypeConverter()) {
+            if (!isa<RankedTensorType>(resultType)) {
+                return failure();
+            }
+            resultType = converter->convertType(op.getResult());
+            if (!isa_and_nonnull<RankedTensorType>(resultType)) {
+                return rewriter.notifyMatchFailure(op, "Expected converted ranked tensor type");
+            }
+        }
+        return llvm::TypeSwitch<Type, LogicalResult>(resultType)
             .Case<IntegerType>([&](auto type) {
                 auto intAttr = llvm::dyn_cast<IntegerAttr>(value);
                 if (!intAttr) {
@@ -93,65 +122,60 @@ struct ConvertArithConstOp final : OpConversionPattern<arith::ConstantOp> {
                 if (!denseAttr) {
                     return rewriter.notifyMatchFailure(op, "Expected DenseElementsAttr");
                 }
+                if (!type.hasStaticShape() || type.getNumElements() != denseAttr.getNumElements()) {
+                    return rewriter.notifyMatchFailure(op, "Array element count must be preserved");
+                }
                 auto elementType = type.getElementType();
-                auto* ctx = op.getContext();
-                auto loc = op.getLoc();
                 return llvm::TypeSwitch<Type, LogicalResult>(elementType)
                     .template Case<IntegerType>([&](auto intType) {
+                        auto sourceType = dyn_cast<IntegerType>(denseAttr.getElementType());
+                        if (!sourceType || !sourceType.isSignless() || !intType.isSignless() ||
+                            sourceType.getWidth() > intType.getWidth()) {
+                            return rewriter.notifyMatchFailure(
+                                op, "Only zero extension of signless integers is supported");
+                        }
                         switch (intType.getWidth()) {
-                        case 1: {
-                            auto inArray = llvm::to_vector(denseAttr.getValues<bool>());
-                            auto inArrayAttr = mlir::DenseBoolArrayAttr::get(ctx, inArray);
-                            rewriter.replaceOpWithNewOp<jeff::IntArrayConst1Op>(op, type,
-                                                                                inArrayAttr);
-                            return success();
-                        }
-                        case 8: {
-                            auto inArray = llvm::to_vector(denseAttr.getValues<int8_t>());
-                            auto inArrayAttr = mlir::DenseI8ArrayAttr::get(ctx, inArray);
-                            rewriter.replaceOpWithNewOp<jeff::IntArrayConst8Op>(op, type,
-                                                                                inArrayAttr);
-                            return success();
-                        }
-                        case 16: {
-                            auto inArray = llvm::to_vector(denseAttr.getValues<int16_t>());
-                            auto inArrayAttr = mlir::DenseI16ArrayAttr::get(ctx, inArray);
-                            rewriter.replaceOpWithNewOp<jeff::IntArrayConst16Op>(op, type,
-                                                                                 inArrayAttr);
-                            return success();
-                        }
-                        case 32: {
-                            auto inArray = llvm::to_vector(denseAttr.getValues<int32_t>());
-                            auto inArrayAttr = mlir::DenseI32ArrayAttr::get(ctx, inArray);
-                            rewriter.replaceOpWithNewOp<jeff::IntArrayConst32Op>(op, type,
-                                                                                 inArrayAttr);
-                            return success();
-                        }
-                        case 64: {
-                            auto inArray = llvm::to_vector(denseAttr.getValues<int64_t>());
-                            auto inArrayAttr = mlir::DenseI64ArrayAttr::get(ctx, inArray);
-                            rewriter.replaceOpWithNewOp<jeff::IntArrayConst64Op>(op, type,
-                                                                                 inArrayAttr);
-                            return success();
-                        }
+                        case 1:
+                            replaceIntegerArrayConstant<jeff::IntArrayConst1Op, bool>(
+                                op, type, denseAttr, rewriter);
+                            break;
+                        case 8:
+                            replaceIntegerArrayConstant<jeff::IntArrayConst8Op, int8_t>(
+                                op, type, denseAttr, rewriter);
+                            break;
+                        case 16:
+                            replaceIntegerArrayConstant<jeff::IntArrayConst16Op, int16_t>(
+                                op, type, denseAttr, rewriter);
+                            break;
+                        case 32:
+                            replaceIntegerArrayConstant<jeff::IntArrayConst32Op, int32_t>(
+                                op, type, denseAttr, rewriter);
+                            break;
+                        case 64:
+                            replaceIntegerArrayConstant<jeff::IntArrayConst64Op, int64_t>(
+                                op, type, denseAttr, rewriter);
+                            break;
                         default:
                             return rewriter.notifyMatchFailure(op, "Unsupported integer type");
                         }
+                        return success();
                     })
                     .template Case<FloatType>([&](auto floatType) {
+                        if (floatType != denseAttr.getElementType()) {
+                            return rewriter.notifyMatchFailure(
+                                op, "Floating-point element type must be preserved");
+                        }
                         switch (floatType.getWidth()) {
                         case 32: {
-                            auto inArray = llvm::to_vector(denseAttr.getValues<float>());
-                            auto inArrayAttr = mlir::DenseF32ArrayAttr::get(ctx, inArray);
-                            rewriter.replaceOpWithNewOp<jeff::FloatArrayConst32Op>(op, type,
-                                                                                   inArrayAttr);
+                            auto values = llvm::to_vector(denseAttr.getValues<float>());
+                            rewriter.replaceOpWithNewOp<jeff::FloatArrayConst32Op>(
+                                op, type, ArrayRef<float>(values));
                             return success();
                         }
                         case 64: {
-                            auto inArray = llvm::to_vector(denseAttr.getValues<double>());
-                            auto inArrayAttr = mlir::DenseF64ArrayAttr::get(ctx, inArray);
-                            rewriter.replaceOpWithNewOp<jeff::FloatArrayConst64Op>(op, type,
-                                                                                   inArrayAttr);
+                            auto values = llvm::to_vector(denseAttr.getValues<double>());
+                            rewriter.replaceOpWithNewOp<jeff::FloatArrayConst64Op>(
+                                op, type, ArrayRef<double>(values));
                             return success();
                         }
                         default:
@@ -519,6 +543,11 @@ struct NativeToJeff final : impl::NativeToJeffBase<NativeToJeff> {
 } // namespace
 
 namespace jeff {
+
+void populateNativeToJeffArrayConstantConversionPatterns(const TypeConverter& typeConverter,
+                                                         RewritePatternSet& patterns) {
+    patterns.add<ConvertArithConstOp>(typeConverter, patterns.getContext(), PatternBenefit(2));
+}
 
 void populateNativeToJeffConversionPatterns(RewritePatternSet& patterns) {
     patterns.add<
