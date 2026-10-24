@@ -15,21 +15,16 @@ class TypeConverter;
 
 namespace jeff {
 
-void populateNativeToJeffConversionPatterns(RewritePatternSet& patterns);
-
-/// Add array-constant patterns that use the converter's result type.
+/// Populate conversion from native MLIR operations to jeff.
 ///
-/// The converted type must be a static rank-one tensor with the same element
-/// count and a jeff element type. Integer bit patterns may be zero-extended to
-/// a wider signless type; truncation and floating-point conversion are not
-/// supported. Elements retain row-major order. The converter may use the source
-/// value to restrict where this representation change applies.
-///
-/// These patterns take precedence over the constants registered by
-/// populateNativeToJeffConversionPatterns. They do not change the conversion of
-/// scalar constants or other arithmetic operations.
-void populateNativeToJeffArrayConstantConversionPatterns(const TypeConverter& typeConverter,
-                                                         RewritePatternSet& patterns);
+/// Array constants use their source types unless arrayConstantTypeConverter is
+/// provided. The converter receives the source value and selects a static
+/// rank-one tensor with unchanged element count and native jeff element types.
+/// Elements keep row-major order. Signless integers retain or increase their
+/// width by zero extension; float types stay unchanged. Other patterns use
+/// native operand and result types.
+void populateNativeToJeffConversionPatterns(
+    RewritePatternSet& patterns, const TypeConverter* arrayConstantTypeConverter = nullptr);
 
 } // namespace jeff
 
