@@ -6,6 +6,7 @@ set(LLVM_REQUIRES_RTTI ON)
 add_mlir_library(
     MLIRJeffTranslation
     Deserialize.cpp
+    Metadata.cpp
     Serialize.cpp
     ${jeff_SOURCE_DIR}/impl/cpp/src/capnp/jeff.capnp.c++
     DEPENDS
