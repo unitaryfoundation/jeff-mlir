@@ -7,7 +7,7 @@ The project adheres to
 
 ## [Unreleased]
 
-### Preserve arbitrary metadata
+### Support metadata serialization and deserialization
 
 Tools can now exchange their own metadata through `jeff` without losing unknown
 keys or payloads during serialization and deserialization. Metadata is preserved
