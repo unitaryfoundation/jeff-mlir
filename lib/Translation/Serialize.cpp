@@ -3,6 +3,7 @@
 #include "jeff/IR/JeffDialect.h"
 #include "jeff/IR/JeffInterfaces.h"
 #include "jeff/IR/JeffOps.h"
+#include "jeff/Translation/Metadata.hpp"
 
 #include <capnp/common.h>
 #include <capnp/list.h>
@@ -10,8 +11,11 @@
 #include <capnp/serialize.h>
 #include <jeff.capnp.h>
 #include <kj/array.h>
+#include <kj/common.h>
+#include <kj/exception.h>
 #include <kj/io.h>
 #include <llvm/ADT/DenseMap.h>
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringMap.h>
 #include <llvm/ADT/StringRef.h>
@@ -26,6 +30,9 @@
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/BuiltinTypeInterfaces.h>
 #include <mlir/IR/BuiltinTypes.h>
+#include <mlir/IR/Diagnostics.h>
+#include <mlir/IR/Location.h>
+#include <mlir/IR/OpDefinition.h>
 #include <mlir/IR/Types.h>
 #include <mlir/IR/Value.h>
 #include <mlir/Support/LLVM.h>
@@ -44,7 +51,42 @@ namespace {
 struct SerializationContext {
     llvm::DenseMap<mlir::Value, uint32_t> values;
     llvm::StringMap<uint16_t> funcs;
-    llvm::StringMap<uint16_t> strings;
+    llvm::StringMap<uint16_t> stringIds;
+    llvm::SmallVector<llvm::StringRef> strings;
+    mlir::LogicalResult result = mlir::success();
+
+    template <typename Source, typename Builder>
+    void serializeMetadata(Source& source, Builder builder) {
+        if (mlir::failed(result)) {
+            return;
+        }
+        mlir::FailureOr<mlir::ArrayAttr> metadata = mlir::jeff::getMetadata(source);
+        if (mlir::failed(metadata)) {
+            result = mlir::failure();
+            return;
+        }
+        if (!*metadata) {
+            return;
+        }
+        for (auto entry : *metadata) {
+            auto name =
+                llvm::cast<mlir::DictionaryAttr>(entry).getAs<mlir::StringAttr>("name").getValue();
+            if (stringIds.try_emplace(name, static_cast<uint16_t>(strings.size())).second) {
+                strings.push_back(name);
+            }
+        }
+        result =
+            mlir::jeff::serializeMetadata(mlir::UnknownLoc::get(metadata->getContext()), *metadata,
+                                          builder.initMetadata(metadata->size()), stringIds);
+    }
+
+    explicit SerializationContext(mlir::ArrayAttr stringsAttr) {
+        for (auto [i, attr] : llvm::enumerate(stringsAttr)) {
+            auto str = llvm::cast<mlir::StringAttr>(attr).getValue();
+            stringIds[str] = static_cast<uint16_t>(i);
+            strings.push_back(str);
+        }
+    }
 
     uint32_t getValueId(mlir::Value value) {
         auto it = values.find(value);
@@ -66,8 +108,8 @@ struct SerializationContext {
     }
 
     uint16_t getStringId(llvm::StringRef str) {
-        auto it = strings.find(str);
-        if (it == strings.end()) {
+        auto it = stringIds.find(str);
+        if (it == stringIds.end()) {
             llvm::errs() << "String " << str << " not found\n";
             llvm::report_fatal_error("String not found");
         }
@@ -1288,6 +1330,8 @@ void serializeOperation(jeff::Op::Builder builder, mlir::Operation* operation,
 
 void serializeRegion(jeff::Region::Builder builder, mlir::Region& region,
                      SerializationContext& ctx) {
+    ctx.serializeMetadata(region, builder);
+
     const auto numSources = region.getNumArguments();
     auto sources = builder.initSources(numSources);
     for (size_t i = 0; i < numSources; ++i) {
@@ -1492,6 +1536,7 @@ void serializeType(jeff::Type::Builder builder, mlir::Type type) {
 
 void serializeOperation(jeff::Op::Builder builder, mlir::Operation* operation,
                         SerializationContext& ctx) {
+    ctx.serializeMetadata(operation, builder);
     llvm::TypeSwitch<mlir::Operation*, void>(operation)
         .Case<mlir::jeff::QubitOperation>([&](auto op) { serializeQubit(builder, op, ctx); })
         .Case<mlir::jeff::QuregOperation>([&](auto op) { serializeQureg(builder, op, ctx); })
@@ -1512,11 +1557,14 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
                        SerializationContext& ctx) {
     ctx.values.clear();
 
+    ctx.serializeMetadata(func, functionBuilder);
+
     auto defBuilder = functionBuilder.initDefinition();
     auto& entryBlock = func.getRegion().front();
 
     // Build body
     auto bodyBuilder = defBuilder.initBody();
+    ctx.serializeMetadata(func.getBody(), bodyBuilder);
 
     // Set sources
     const auto numSources = entryBlock.getNumArguments();
@@ -1556,25 +1604,15 @@ void serializeFunction(jeff::Function::Builder functionBuilder, mlir::func::Func
         auto valueBuilder = valuesBuilder[v];
         auto typeBuilder = valueBuilder.initType();
         serializeType(typeBuilder, values[v].getType());
+        ctx.serializeMetadata(values[v], valueBuilder);
     }
 }
 
-} // namespace
-
-void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
-    SerializationContext ctx;
+mlir::LogicalResult serializeModule(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
+    auto stringsAttr = llvm::cast<mlir::ArrayAttr>(moduleOp->getAttr("jeff.strings"));
+    SerializationContext ctx(stringsAttr);
 
     auto moduleBuilder = message.initRoot<jeff::Module>();
-
-    // Get strings
-    auto stringsAttr = llvm::cast<mlir::ArrayAttr>(moduleOp->getAttr("jeff.strings"));
-    const auto numStrings = stringsAttr.size();
-    auto stringsBuilder = moduleBuilder.initStrings(numStrings);
-    for (int32_t i = 0; i < numStrings; ++i) {
-        const auto str = llvm::cast<mlir::StringAttr>(stringsAttr[i]).getValue().str();
-        ctx.strings[str] = i;
-        stringsBuilder.set(i, str);
-    }
 
     // Build functions
     uint16_t id = 0;
@@ -1595,6 +1633,7 @@ void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
     }
 
     // Set metadata
+    ctx.serializeMetadata(moduleOp, moduleBuilder);
     moduleBuilder.setEntrypoint(
         llvm::cast<mlir::IntegerAttr>(moduleOp->getAttr("jeff.entrypoint")).getUInt());
 
@@ -1612,17 +1651,41 @@ void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
 
     moduleBuilder.setVersionPatch(
         llvm::cast<mlir::IntegerAttr>(moduleOp->getAttr("jeff.versionPatch")).getUInt());
+
+    // Write the string table after metadata has registered its names
+    auto stringsBuilder = moduleBuilder.initStrings(ctx.strings.size());
+    for (auto [i, str] : llvm::enumerate(ctx.strings)) {
+        stringsBuilder.set(i, str.str());
+    }
+    return ctx.result;
+}
+
+} // namespace
+
+mlir::LogicalResult serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
+    auto result = mlir::success();
+    auto exception =
+        kj::runCatchingExceptions([&] { result = serializeModule(moduleOp, message); });
+    KJ_IF_MAYBE (error, exception) {
+        moduleOp.emitError() << "Failed to serialize jeff: " << error->getDescription().cStr();
+        return mlir::failure();
+    }
+    return result;
 }
 
 kj::Array<capnp::word> serialize(mlir::ModuleOp moduleOp) {
     capnp::MallocMessageBuilder message;
-    serialize(moduleOp, message);
+    if (mlir::failed(serialize(moduleOp, message))) {
+        return {};
+    }
     return capnp::messageToFlatArray(message);
 }
 
 mlir::LogicalResult serializeToFile(mlir::ModuleOp moduleOp, llvm::StringRef path) {
     capnp::MallocMessageBuilder message;
-    serialize(moduleOp, message);
+    if (mlir::failed(serialize(moduleOp, message))) {
+        return mlir::failure();
+    }
 
     auto file = llvm::sys::fs::openNativeFileForWrite(path, llvm::sys::fs::CD_CreateAlways,
                                                       llvm::sys::fs::OF_None);

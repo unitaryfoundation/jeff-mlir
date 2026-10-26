@@ -10,6 +10,8 @@
  * @brief Serialize an MLIR module containing a jeff program into a fresh Cap'n Proto message
  * @param moduleOp The MLIR module to serialize.
  * @param message The fresh message to encode into.
+ * @return Success if serialization completed, failure after an error has been diagnosed.
+ * Cap'n Proto errors do not escape as exceptions.
  *
  * @details
  * The caller owns the message and its segments. Keep the message alive and unchanged while reading
@@ -20,12 +22,13 @@
  *
  * - Only one-dimensional tensors with dynamic size are supported.
  */
-void serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message);
+mlir::LogicalResult serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message);
 
 /**
  * @brief Serialize an MLIR module containing a jeff program into a memory buffer.
  * @param moduleOp The MLIR module to serialize.
- * @return An owned memory buffer containing the serialized jeff module.
+ * @return An owned memory buffer containing the serialized jeff module, or an empty buffer if
+ * serialization failed.
  *
  * @details
  * Known limitations:

@@ -7,11 +7,11 @@ The project adheres to
 
 ## [Unreleased]
 
-### Fix zero-array conversion and cleanup
+### Support metadata serialization and deserialization
 
-Integer and floating-point zero arrays lower to initialized native tensors and
-declare their lack of memory effects, enabling dead-code elimination and common
-subexpression elimination. Native zero splats also convert back to jeff arrays.
+Tools can now exchange their own metadata through `jeff` without losing unknown
+keys or payloads during serialization and deserialization. Metadata is preserved
+on modules, functions, regions, operations, and values.
 
 ### Add direct Cap'n Proto message exchange
 
@@ -25,6 +25,12 @@ caller-owned `capnp::MessageBuilder` and deserialize an existing
 for array constants, allowing callers to flatten tensors and zero-extend narrow
 integers to jeff widths while preserving element order. Other operations retain
 their existing conversion behavior.
+
+### Fix zero-array conversion and cleanup
+
+Integer and floating-point zero arrays lower to initialized native tensors and
+declare their lack of memory effects, enabling dead-code elimination and common
+subexpression elimination. Native zero splats also convert back to jeff arrays.
 
 ## [0.4.0] - 2026-09-11
 

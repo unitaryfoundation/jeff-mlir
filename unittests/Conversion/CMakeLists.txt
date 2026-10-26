@@ -6,7 +6,7 @@ if(NOT TARGET ${test_name})
         return()
     endif()
 
-    add_executable(${test_name} test_native_round_trip.cpp)
+    add_executable(${test_name} test_array_conversion.cpp test_native_round_trip.cpp)
 
     add_dependencies(${test_name} generate_test_cases)
 

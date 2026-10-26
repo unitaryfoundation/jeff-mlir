@@ -26,7 +26,9 @@ include "mlir/IR/AttrTypeBase.td"
 def JeffDialect : Dialect {
     let summary = "A jeff dialect.";
     let description = [{
-        A jeff dialect.
+        The `jeff` dialect represents the `jeff` quantum program exchange format
+        in MLIR. It provides quantum types and operations alongside classical
+        computation and structured control flow.
     }];
 
     /// This is the namespace of the dialect in MLIR, which is used as a prefix for types and ops.
