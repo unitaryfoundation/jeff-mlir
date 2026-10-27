@@ -359,7 +359,7 @@ void serializeCustom(jeff::Op::Builder builder, mlir::jeff::CustomOp op,
     gateBuilder.setAdjoint(op.getIsAdjoint());
     gateBuilder.setPower(op.getPower());
     auto customBuilder = gateBuilder.initCustom();
-    customBuilder.setName(ctx.getStringId(op.getName().str()));
+    customBuilder.setName(ctx.getStringId(op.getName()));
     customBuilder.setNumQubits(op.getNumTargets());
     customBuilder.setNumParams(op.getNumParams());
 
@@ -1628,7 +1628,7 @@ mlir::LogicalResult serializeModule(mlir::ModuleOp moduleOp, capnp::MessageBuild
     for (size_t i = 0; i < numFunctions; ++i) {
         auto function = functions[i];
         auto functionBuilder = functionBuilders[i];
-        functionBuilder.setName(ctx.getStringId(function.getName().str()));
+        functionBuilder.setName(ctx.getStringId(function.getName()));
         serializeFunction(functionBuilder, function, ctx);
     }
 
@@ -1661,7 +1661,8 @@ mlir::LogicalResult serializeModule(mlir::ModuleOp moduleOp, capnp::MessageBuild
 }
 
 template <typename Callback>
-mlir::LogicalResult withSerializationDiagnostics(mlir::ModuleOp moduleOp, Callback callback) {
+mlir::LogicalResult withSerializationDiagnostics(mlir::ModuleOp moduleOp,
+                                                 const Callback& callback) {
     auto result = mlir::failure();
     auto exception = kj::runCatchingExceptions([&] { result = callback(); });
     KJ_IF_MAYBE (error, exception) {
