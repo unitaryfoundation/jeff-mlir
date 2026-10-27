@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <string>
 
 namespace mlir::jeff {
@@ -33,7 +34,7 @@ namespace mlir::jeff {
 namespace {
 
 template <typename Callback>
-auto withCapnpDiagnostics(Location location, llvm::StringRef action, Callback callback) {
+auto withCapnpDiagnostics(Location location, llvm::StringRef action, const Callback& callback) {
     using Result = decltype(callback());
     Result result = failure();
     auto exception = kj::runCatchingExceptions([&] { result = callback(); });
@@ -116,17 +117,17 @@ FailureOr<DenseI8ArrayAttr> deserializeMetadataPayload(Location location,
 }
 
 template <typename Callback>
-LogicalResult withMetadataReader(Location location, DenseI8ArrayAttr value, Callback callback) {
+LogicalResult withMetadataReader(Location location, DenseI8ArrayAttr value,
+                                 const Callback& callback) {
     auto bytes = value.asArrayRef();
     if (bytes.size() % sizeof(capnp::word) != 0) {
         return emitError(location,
                          "Metadata payload size must be a multiple of the Cap'n Proto word size");
     }
     return withCapnpDiagnostics(location, "read", [&]() -> LogicalResult {
-        auto words = kj::heapArray<capnp::word>(bytes.size() / sizeof(capnp::word));
-        if (!bytes.empty()) {
-            std::memcpy(words.begin(), bytes.data(), bytes.size());
-        }
+        // DenseArrayAttr stores its bytes in 64-bit-aligned storage.
+        auto words = kj::arrayPtr(reinterpret_cast<const capnp::word*>(bytes.data()),
+                                  bytes.size() / sizeof(capnp::word));
         capnp::FlatArrayMessageReader message(words);
         if (message.getEnd() != words.end()) {
             return emitError(location, "Metadata payload contains trailing data");
@@ -148,7 +149,14 @@ LogicalResult serializeMetadataPayload(Location location, DenseI8ArrayAttr value
 FailureOr<DenseI8ArrayAttr> serializeTextMetadata(Location location, llvm::StringRef text) {
     return withCapnpDiagnostics(location, "serialize text", [&]() -> FailureOr<DenseI8ArrayAttr> {
         capnp::MallocMessageBuilder message;
-        message.getRoot<capnp::AnyPointer>().setAs<capnp::Text>(text.str());
+        if (text.size() > std::numeric_limits<unsigned int>::max()) {
+            return emitError(location, "Text metadata exceeds the Cap'n Proto size limit");
+        }
+        auto builder = message.getRoot<capnp::AnyPointer>().initAs<capnp::Text>(
+            static_cast<unsigned int>(text.size()));
+        if (!text.empty()) {
+            std::memcpy(builder.begin(), text.data(), text.size());
+        }
         auto words = capnp::messageToFlatArray(message);
         auto bytes = words.asBytes();
         return DenseI8ArrayAttr::get(

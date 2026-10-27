@@ -22,8 +22,7 @@ namespace mlir::jeff {
  * @brief Encode text as a metadata payload with a Cap'n Proto Text root.
  *
  * Returns an owned dense i8 array for a metadata entry's `value` field. Empty text
- * and embedded NUL bytes are preserved. Errors are diagnosed and return failure;
- * Cap'n Proto exceptions do not escape.
+ * and embedded NUL bytes are preserved. Errors are diagnosed and return failure.
  */
 FailureOr<DenseI8ArrayAttr> serializeTextMetadata(Location location, llvm::StringRef text);
 
@@ -31,8 +30,8 @@ FailureOr<DenseI8ArrayAttr> serializeTextMetadata(Location location, llvm::Strin
  * @brief Decode a text metadata payload into an owned string attribute.
  *
  * The payload must contain one complete Cap'n Proto message with a Text root.
- * Invalid framing or incompatible payload types are diagnosed and return failure;
- * Cap'n Proto exceptions do not escape. A null root decodes as empty text.
+ * Invalid framing or incompatible payload types are diagnosed and return failure.
+ * A null root decodes as empty text.
  */
 FailureOr<StringAttr> deserializeTextMetadata(Location location, DenseI8ArrayAttr value);
 

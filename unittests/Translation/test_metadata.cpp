@@ -145,8 +145,11 @@ class MetadataTest : public ::testing::Test {
 
 TEST_F(MetadataTest, TextPayloadRoundTrip) {
     auto location = mlir::UnknownLoc::get(&context);
-    for (auto text :
-         {llvm::StringRef(""), llvm::StringRef("theta"), llvm::StringRef("φ\0suffix", 9)}) {
+    for (auto text : {
+             llvm::StringRef(""),
+             llvm::StringRef("theta suffix").take_front(5),
+             llvm::StringRef("φ\0suffix", 9),
+         }) {
         auto payload = mlir::jeff::serializeTextMetadata(location, text);
         ASSERT_TRUE(mlir::succeeded(payload));
         auto decoded = mlir::jeff::deserializeTextMetadata(location, *payload);
