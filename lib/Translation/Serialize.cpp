@@ -359,7 +359,7 @@ void serializeCustom(jeff::Op::Builder builder, mlir::jeff::CustomOp op,
     gateBuilder.setAdjoint(op.getIsAdjoint());
     gateBuilder.setPower(op.getPower());
     auto customBuilder = gateBuilder.initCustom();
-    customBuilder.setName(ctx.getStringId(op.getName().str()));
+    customBuilder.setName(ctx.getStringId(op.getName()));
     customBuilder.setNumQubits(op.getNumTargets());
     customBuilder.setNumParams(op.getNumParams());
 
@@ -1628,7 +1628,7 @@ mlir::LogicalResult serializeModule(mlir::ModuleOp moduleOp, capnp::MessageBuild
     for (size_t i = 0; i < numFunctions; ++i) {
         auto function = functions[i];
         auto functionBuilder = functionBuilders[i];
-        functionBuilder.setName(ctx.getStringId(function.getName().str()));
+        functionBuilder.setName(ctx.getStringId(function.getName()));
         serializeFunction(functionBuilder, function, ctx);
     }
 
@@ -1660,12 +1660,11 @@ mlir::LogicalResult serializeModule(mlir::ModuleOp moduleOp, capnp::MessageBuild
     return ctx.result;
 }
 
-} // namespace
-
-mlir::LogicalResult serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
-    auto result = mlir::success();
-    auto exception =
-        kj::runCatchingExceptions([&] { result = serializeModule(moduleOp, message); });
+template <typename Callback>
+mlir::LogicalResult withSerializationDiagnostics(mlir::ModuleOp moduleOp,
+                                                 const Callback& callback) {
+    auto result = mlir::failure();
+    auto exception = kj::runCatchingExceptions([&] { result = callback(); });
     KJ_IF_MAYBE (error, exception) {
         moduleOp.emitError() << "Failed to serialize jeff: " << error->getDescription().cStr();
         return mlir::failure();
@@ -1673,35 +1672,51 @@ mlir::LogicalResult serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& me
     return result;
 }
 
+} // namespace
+
+mlir::LogicalResult serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& message) {
+    return withSerializationDiagnostics(moduleOp,
+                                        [&] { return serializeModule(moduleOp, message); });
+}
+
 kj::Array<capnp::word> serialize(mlir::ModuleOp moduleOp) {
-    capnp::MallocMessageBuilder message;
-    if (mlir::failed(serialize(moduleOp, message))) {
+    kj::Array<capnp::word> words;
+    if (mlir::failed(withSerializationDiagnostics(moduleOp, [&] {
+            capnp::MallocMessageBuilder message;
+            if (mlir::failed(serializeModule(moduleOp, message))) {
+                return mlir::failure();
+            }
+            words = capnp::messageToFlatArray(message);
+            return mlir::success();
+        }))) {
         return {};
     }
-    return capnp::messageToFlatArray(message);
+    return words;
 }
 
 mlir::LogicalResult serializeToFile(mlir::ModuleOp moduleOp, llvm::StringRef path) {
-    capnp::MallocMessageBuilder message;
-    if (mlir::failed(serialize(moduleOp, message))) {
-        return mlir::failure();
-    }
+    return withSerializationDiagnostics(moduleOp, [&] {
+        capnp::MallocMessageBuilder message;
+        if (mlir::failed(serializeModule(moduleOp, message))) {
+            return mlir::failure();
+        }
 
-    auto file = llvm::sys::fs::openNativeFileForWrite(path, llvm::sys::fs::CD_CreateAlways,
-                                                      llvm::sys::fs::OF_None);
-    if (!file) {
-        llvm::errs() << "Failed to open " << path << ": " << llvm::toString(file.takeError())
-                     << "\n";
-        return mlir::failure();
-    }
+        auto file = llvm::sys::fs::openNativeFileForWrite(path, llvm::sys::fs::CD_CreateAlways,
+                                                          llvm::sys::fs::OF_None);
+        if (!file) {
+            llvm::errs() << "Failed to open " << path << ": " << llvm::toString(file.takeError())
+                         << "\n";
+            return mlir::failure();
+        }
 
 #ifdef _WIN32
-    kj::AutoCloseHandle handle(*file);
-    kj::HandleOutputStream output(kj::mv(handle));
-    capnp::writeMessage(output, message);
+        kj::AutoCloseHandle handle(*file);
+        kj::HandleOutputStream output(kj::mv(handle));
+        capnp::writeMessage(output, message);
 #else
-    const kj::AutoCloseFd autoCloseFd(*file);
-    capnp::writeMessageToFd(autoCloseFd, message);
+        const kj::AutoCloseFd autoCloseFd(*file);
+        capnp::writeMessageToFd(autoCloseFd, message);
 #endif
-    return mlir::success();
+        return mlir::success();
+    });
 }

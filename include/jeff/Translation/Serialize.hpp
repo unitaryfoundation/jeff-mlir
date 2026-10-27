@@ -11,7 +11,6 @@
  * @param moduleOp The MLIR module to serialize.
  * @param message The fresh message to encode into.
  * @return Success if serialization completed, failure after an error has been diagnosed.
- * Cap'n Proto errors do not escape as exceptions.
  *
  * @details
  * The caller owns the message and its segments. Keep the message alive and unchanged while reading
@@ -42,6 +41,7 @@ kj::Array<capnp::word> serialize(mlir::ModuleOp moduleOp);
  * @param moduleOp The MLIR module to serialize.
  * @param path The path to the .jeff file.
  * @return Success if the file was written, failure otherwise.
+ * An output failure may leave a partial file.
  *
  * @details
  * Known limitations:

@@ -5,10 +5,12 @@
 
 #include <gtest/gtest.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
+#include <mlir/IR/Diagnostics.h>
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/Support/LLVM.h>
 
 #include <filesystem>
+#include <string>
 
 namespace fs = std::filesystem;
 
@@ -39,3 +41,20 @@ TEST(SerializeToFileTest, FailsForUnwritablePath) {
     const auto output = inputsDir / "bell_pair.jeff" / "serialize_to_file.jeff";
     EXPECT_TRUE(mlir::failed(serializeToFile(*mlirModule, output.string())));
 }
+
+#ifdef __linux__
+TEST(SerializeToFileTest, DiagnosesWriteFailure) {
+    mlir::MLIRContext context;
+    context.loadDialect<mlir::func::FuncDialect, mlir::jeff::JeffDialect>();
+    auto moduleOp =
+        deserializeFromFile(&context, (fs::path(TEST_INPUTS_DIR) / "bell_pair.jeff").string());
+    ASSERT_TRUE(moduleOp);
+    std::string diagnostic;
+    mlir::ScopedDiagnosticHandler handler(&context, [&](mlir::Diagnostic& error) {
+        diagnostic = error.str();
+        return mlir::success();
+    });
+    EXPECT_TRUE(mlir::failed(serializeToFile(*moduleOp, "/dev/full")));
+    EXPECT_NE(diagnostic.find("Failed to serialize jeff"), std::string::npos);
+}
+#endif
