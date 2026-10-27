@@ -28,7 +28,7 @@ mlir::LogicalResult serialize(mlir::ModuleOp moduleOp, capnp::MessageBuilder& me
  * @brief Serialize an MLIR module containing a jeff program into a memory buffer.
  * @param moduleOp The MLIR module to serialize.
  * @return An owned memory buffer containing the serialized jeff module, or an empty buffer if
- * serialization failed.
+ * serialization failed. Cap'n Proto errors are diagnosed and do not escape as exceptions.
  *
  * @details
  * Known limitations:
@@ -41,7 +41,9 @@ kj::Array<capnp::word> serialize(mlir::ModuleOp moduleOp);
  * @brief Serialize an MLIR module containing a jeff program into a .jeff file.
  * @param moduleOp The MLIR module to serialize.
  * @param path The path to the .jeff file.
- * @return Success if the file was written, failure otherwise.
+ * @return Success if the file was written, failure otherwise. Cap'n Proto errors, including
+ * write failures, are diagnosed and do not escape as exceptions.
+ * An output failure may leave a partial file.
  *
  * @details
  * Known limitations:
