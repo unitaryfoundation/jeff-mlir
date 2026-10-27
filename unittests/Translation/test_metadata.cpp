@@ -5,6 +5,7 @@
 
 #include <capnp/any.h>
 #include <capnp/blob.h>
+#include <capnp/common.h>
 #include <capnp/list.h>
 #include <capnp/message.h>
 #include <capnp/serialize.h>
@@ -12,6 +13,8 @@
 #include <jeff.capnp.h>
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/StringMap.h>
+#include <llvm/ADT/StringRef.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/raw_ostream.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
@@ -139,6 +142,53 @@ class MetadataTest : public ::testing::Test {
 };
 
 } // namespace
+
+TEST_F(MetadataTest, TextPayloadRoundTrip) {
+    auto location = mlir::UnknownLoc::get(&context);
+    for (auto text :
+         {llvm::StringRef(""), llvm::StringRef("theta"), llvm::StringRef("φ\0suffix", 9)}) {
+        auto payload = mlir::jeff::serializeTextMetadata(location, text);
+        ASSERT_TRUE(mlir::succeeded(payload));
+        auto decoded = mlir::jeff::deserializeTextMetadata(location, *payload);
+        ASSERT_TRUE(mlir::succeeded(decoded));
+        EXPECT_EQ(decoded->getValue(), text);
+        capnp::MallocMessageBuilder message;
+        auto entry = message.initRoot<capnp::List<jeff::Meta>>(1);
+        auto metadata = payloadMetadata(payload->asArrayRef());
+        llvm::StringMap<uint16_t> strings{{"vendor.payload", 0}};
+        ASSERT_TRUE(
+            mlir::succeeded(mlir::jeff::serializeMetadata(location, metadata, entry, strings)));
+        auto nativeText = entry[0].getValue().getAs<capnp::Text>();
+        EXPECT_EQ(llvm::StringRef(nativeText.begin(), nativeText.size()), text);
+    }
+}
+
+TEST_F(MetadataTest, RejectsInvalidTextPayloads) {
+    auto location = mlir::UnknownLoc::get(&context);
+    mlir::Builder builder(&context);
+    auto entries = arbitraryMetadata();
+    auto nonText =
+        llvm::cast<mlir::DictionaryAttr>(entries[2]).getAs<mlir::DenseI8ArrayAttr>("value");
+    auto text = mlir::jeff::serializeTextMetadata(location, "theta");
+    ASSERT_TRUE(mlir::succeeded(text));
+    llvm::SmallVector<int8_t> trailing(text->asArrayRef());
+    trailing.resize(trailing.size() + sizeof(capnp::word), 0);
+    std::string diagnostic;
+    mlir::ScopedDiagnosticHandler handler(&context, [&](mlir::Diagnostic& error) {
+        diagnostic = error.str();
+        return mlir::success();
+    });
+    for (auto payload : {
+             builder.getDenseI8ArrayAttr({}),
+             builder.getDenseI8ArrayAttr({0}),
+             nonText,
+             builder.getDenseI8ArrayAttr(trailing),
+         }) {
+        diagnostic.clear();
+        EXPECT_TRUE(mlir::failed(mlir::jeff::deserializeTextMetadata(location, payload)));
+        EXPECT_FALSE(diagnostic.empty());
+    }
+}
 
 TEST_F(MetadataTest, PreservesAllAttachmentPointsAndOpaquePayloads) {
     auto original = makeModule();
