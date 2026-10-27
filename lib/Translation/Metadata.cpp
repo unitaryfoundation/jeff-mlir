@@ -1,6 +1,7 @@
 #include "jeff/Translation/Metadata.hpp"
 
 #include <capnp/any.h>
+#include <capnp/blob.h>
 #include <capnp/common.h>
 #include <capnp/list.h>
 #include <capnp/message.h>
@@ -25,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <string>
 
 namespace mlir::jeff {
@@ -32,7 +34,7 @@ namespace mlir::jeff {
 namespace {
 
 template <typename Callback>
-auto withCapnpDiagnostics(Location location, llvm::StringRef action, Callback callback) {
+auto withCapnpDiagnostics(Location location, llvm::StringRef action, const Callback& callback) {
     using Result = decltype(callback());
     Result result = failure();
     auto exception = kj::runCatchingExceptions([&] { result = callback(); });
@@ -114,28 +116,67 @@ FailureOr<DenseI8ArrayAttr> deserializeMetadataPayload(Location location,
     });
 }
 
-LogicalResult serializeMetadataPayload(Location location, DenseI8ArrayAttr value,
-                                       capnp::AnyPointer::Builder builder) {
+template <typename Callback>
+LogicalResult withMetadataReader(Location location, DenseI8ArrayAttr value,
+                                 const Callback& callback) {
     auto bytes = value.asArrayRef();
     if (bytes.size() % sizeof(capnp::word) != 0) {
         return emitError(location,
                          "Metadata payload size must be a multiple of the Cap'n Proto word size");
     }
-    return withCapnpDiagnostics(location, "serialize", [&]() -> LogicalResult {
-        auto words = kj::heapArray<capnp::word>(bytes.size() / sizeof(capnp::word));
-        if (!bytes.empty()) {
-            std::memcpy(words.begin(), bytes.data(), bytes.size());
-        }
+    return withCapnpDiagnostics(location, "read", [&]() -> LogicalResult {
+        // DenseArrayAttr stores its bytes in 64-bit-aligned storage.
+        auto words = kj::arrayPtr(reinterpret_cast<const capnp::word*>(bytes.data()),
+                                  bytes.size() / sizeof(capnp::word));
         capnp::FlatArrayMessageReader message(words);
         if (message.getEnd() != words.end()) {
             return emitError(location, "Metadata payload contains trailing data");
         }
-        builder.set(message.getRoot<capnp::AnyPointer>());
+        return callback(message.getRoot<capnp::AnyPointer>());
+    });
+}
+
+LogicalResult serializeMetadataPayload(Location location, DenseI8ArrayAttr value,
+                                       capnp::AnyPointer::Builder builder) {
+    return withMetadataReader(location, value, [&](capnp::AnyPointer::Reader root) {
+        builder.set(root);
         return success();
     });
 }
 
 } // namespace
+
+FailureOr<DenseI8ArrayAttr> serializeTextMetadata(Location location, llvm::StringRef text) {
+    return withCapnpDiagnostics(location, "serialize text", [&]() -> FailureOr<DenseI8ArrayAttr> {
+        capnp::MallocMessageBuilder message;
+        if (text.size() > std::numeric_limits<unsigned int>::max()) {
+            return emitError(location, "Text metadata exceeds the Cap'n Proto size limit");
+        }
+        auto builder = message.getRoot<capnp::AnyPointer>().initAs<capnp::Text>(
+            static_cast<unsigned int>(text.size()));
+        if (!text.empty()) {
+            std::memcpy(builder.begin(), text.data(), text.size());
+        }
+        auto words = capnp::messageToFlatArray(message);
+        auto bytes = words.asBytes();
+        return DenseI8ArrayAttr::get(
+            location.getContext(),
+            llvm::ArrayRef(reinterpret_cast<const int8_t*>(bytes.begin()), bytes.size()));
+    });
+}
+
+FailureOr<StringAttr> deserializeTextMetadata(Location location, DenseI8ArrayAttr value) {
+    StringAttr text;
+    if (failed(withMetadataReader(location, value, [&](capnp::AnyPointer::Reader root) {
+            auto reader = root.getAs<capnp::Text>();
+            text = StringAttr::get(location.getContext(),
+                                   llvm::StringRef(reader.begin(), reader.size()));
+            return success();
+        }))) {
+        return failure();
+    }
+    return text;
+}
 
 FailureOr<ArrayAttr> getMetadata(Operation* operation) {
     auto results = getArray(operation, "jeff.result_metadata");

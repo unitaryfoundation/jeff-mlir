@@ -12,6 +12,9 @@ The project adheres to
 Tools can now exchange their own metadata through `jeff` without losing unknown
 keys or payloads during serialization and deserialization. Metadata is preserved
 on modules, functions, regions, operations, and values.
+`serializeTextMetadata()` and `deserializeTextMetadata()` convert between text
+and metadata payloads, returning owned MLIR attributes and diagnosing invalid
+payloads.
 
 ### Add direct Cap'n Proto message exchange
 
