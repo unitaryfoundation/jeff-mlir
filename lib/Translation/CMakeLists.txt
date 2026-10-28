@@ -23,6 +23,6 @@ add_mlir_library(
 )
 
 target_include_directories(
-    MLIRJeffTranslation PUBLIC ${jeff_SOURCE_DIR}/impl/cpp/src/capnp
-                               ${jeff_BINARY_DIR}/impl/cpp/src/capnp
+    MLIRJeffTranslation
+    PUBLIC ${jeff_SOURCE_DIR}/impl/cpp/src/capnp ${jeff_BINARY_DIR}/impl/cpp/src/capnp
 )

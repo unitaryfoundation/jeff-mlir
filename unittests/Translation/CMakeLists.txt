@@ -13,18 +13,16 @@ if(NOT TARGET ${test_name})
     add_dependencies(${test_name} generate_test_cases)
 
     # Relink when the test cases change so that they are discovered again
-    set_property(
-        TARGET ${test_name}
-        APPEND
-        PROPERTY LINK_DEPENDS ${generate_test_cases_stamp}
-    )
+    set_property(TARGET ${test_name} APPEND PROPERTY LINK_DEPENDS ${generate_test_cases_stamp})
 
     target_link_libraries(
-        ${test_name} PRIVATE GTest::gtest_main MLIRJeff MLIRJeffTranslation MLIRParser
+        ${test_name}
+        PRIVATE GTest::gtest_main MLIRJeff MLIRJeffTranslation MLIRParser
     )
 
     target_compile_definitions(
-        ${test_name} PRIVATE TEST_INPUTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../inputs"
+        ${test_name}
+        PRIVATE TEST_INPUTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../inputs"
     )
 
     set_target_properties(${test_name} PROPERTIES FOLDER unittests)

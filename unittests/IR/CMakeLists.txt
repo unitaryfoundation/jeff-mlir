@@ -6,8 +6,8 @@ if(NOT TARGET ${test_name})
     )
 
     target_link_libraries(
-        ${test_name} PRIVATE GTest::gtest_main MLIRJeff MLIRIR MLIRParser MLIRFuncDialect
-                             MLIRSupport
+        ${test_name}
+        PRIVATE GTest::gtest_main MLIRJeff MLIRIR MLIRParser MLIRFuncDialect MLIRSupport
     )
 
     set_target_properties(${test_name} PROPERTIES FOLDER unittests)
