@@ -56,7 +56,7 @@ repos:
 
   ## Format CMake files with cmakefmt
   - repo: https://github.com/cmakefmt/cmakefmt
-    rev: v2.3.2
+    rev: v2.4.0
     hooks:
       - id: cmakefmt-fix
         priority: 4
